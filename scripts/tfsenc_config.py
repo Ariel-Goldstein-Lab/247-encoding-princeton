@@ -113,7 +113,8 @@ def setup_environ(args):
     """
 
     # input directory paths (pickles)
-    DATA_DIR = os.path.join(os.getcwd(), "data")
+    # DATA_DIR = os.path.join(os.getcwd(), "data")
+    DATA_DIR = "/scratch/gpfs/cc27/results"
     PICKLE_DIR = os.path.join(DATA_DIR, args.project_id, str(args.sid), "pickles")
     EMB_DIR = os.path.join(PICKLE_DIR, "embeddings", args.emb, "full")  # TODO
     args.base_df_path = os.path.join(EMB_DIR, "base_df.pkl")
@@ -141,18 +142,23 @@ def setup_environ(args):
     ]
 
     # output directory paths
-    OUTPUT_DIR = os.path.join(os.getcwd(), "results", args.project_id)
-    RESULT_PARENT_DIR = f"{args.user_id[0:2]}-{args.project_id}-{args.sid}-{args.emb}-{args.output_dir_name}"
-    RESULT_CHILD_DIR = f"{args.user_id[0:2]}-{args.window_size}ms-{args.sid}"
+    # OUTPUT_DIR = os.path.join(os.getcwd(), "results", args.project_id)
+    OUTPUT_DIR = os.path.join("/scratch/gpfs/cc27/", "results", args.project_id)
+    RESULT_PARENT_DIR = f"{args.user_id[0:2]}-{args.project_id}-{args.sid}-{args.emb}-{args.output_dir_name}-cl{args.context_length}"
+    RESULT_CHILD_DIR = (
+        f"{args.user_id[0:2]}-{args.window_size}ms-{args.sid}_layer{args.layer_idx}"
+    )
+    if "data_subset_type" in args:
+        RESULT_CHILD_DIR += f"_{args.data_subset_type}"
     args.output_dir = os.path.join(OUTPUT_DIR, RESULT_PARENT_DIR, RESULT_CHILD_DIR)
     os.makedirs(args.output_dir, exist_ok=True)
 
     if torch.cuda.is_available():
         print("set backend to cuda")
-        backend = set_backend("torch_cuda", on_error="warn")
+        _ = set_backend("torch_cuda", on_error="warn")
     else:
         print("set backend to cpu numpy")
-        backend = set_backend("numpy", on_error="warn")
+        _ = set_backend("numpy", on_error="warn")
 
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"  # HACK
 
