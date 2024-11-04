@@ -1,12 +1,12 @@
 #!/bin/bash
-#SBATCH --time=1:30:00
-#SBATCH --mem=80GB
+#SBATCH --time=72:30:00
+#SBATCH --mem=300GB
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:1
-##SBATCH --constraint=gpu80
-##SBATCH --cpus-per-task=4
 #SBATCH -o 'logs/%A.log'
-
+#SBATCH -e 'logs/%A.err'
+#SBATCH --mail-type=fail # send email if job fails
+#SBATCH --mail-user=cc27@princeton.edu
+#SBATCH --gres=gpu:1
 
 if [[ "$HOSTNAME" == *"tiger"* ]]
 then
@@ -17,7 +17,8 @@ elif [[ "$HOSTNAME" == *"della"* ]]
 then
     echo "It's Della"
     module load anaconda3/2021.11
-    source activate /home/kw1166/.conda/envs/247-main
+    source activate 247-main
+    conda activate 247-main
 else
     module load anacondapy
     source activate srm

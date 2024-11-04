@@ -17,14 +17,18 @@ CMD := echo
 CMD := python
 CMD := sbatch submit1.sh
 
-
+CLS := 256
+SIDS := 798
 run-encoding:
 	mkdir -p logs
-	$(CMD) scripts/tfsenc_main.py \
-		--config-file configs/config.yml configs/625-config.yml configs/glove-config.yml
+	for sid in $(SIDS); do \
+		for cl in $(CLS); do \
+			$(CMD) scripts/tfsenc_main.py \
+				--config-file configs/config-tfs.yml configs/$$sid-config.yml configs/autocompress-manual-r.yml configs/layer16-config.yml configs/cl$$cl-config.yml configs/lags200k-config-r.yml configs/save-preds-config.yml configs/subset-ref-recap-config.yml; \
+		done; \
+	done;
 
 
-SIDS:= 625 676 7170 798
 run-encoding-sids:
 	mkdir -p logs
 	for sid in $(SIDS); do \
