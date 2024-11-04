@@ -1,7 +1,7 @@
 ##############################
 ####### Set Parameters #######
 ##############################
-project_id: tfs
+project_id: podcast
 window_size: 200 # window size (ms) to average for signal
 minimum_word_frequency: 0
 cv_fold_num: 10
@@ -12,4 +12,4 @@ trim_conv_edges: True # trim lags out side of convo on/offsets
 detrend_signal: True # detrend signal with polynomial
 fold_correlation: True # save correlation per fold
 comp: True # Run encoding for words in comprehension
-prod: True # Run encoding for words in production
+prod: False # Run encoding for words in production

@@ -7,9 +7,10 @@ layer_idx: 48
 # Embedding modifications: none, rand, emb, shift-emb, concat-emb
 emb_mod: shift-emb
 
-pca_to: 50
+pca_to: 0
 ridge: False
+himalaya: True
 
 # Lags
-lags: np.arange(-2000,2001,25)
-output_dir_name: pca50-ols-lag2k-25-all
+lags: np.arange(-10000,10001,100)
+output_dir_name: nopca-ols-lag100k-100-all-himalaya

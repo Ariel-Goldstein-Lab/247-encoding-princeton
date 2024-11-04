@@ -1,8 +1,6 @@
 
 # Embeddings
-emb: gpt2-xl
-context_length: 1024
-layer_idx: 48
+emb: AutoCompressor-Llama-2-7b-6k_from_convo_start_minus_context
 
 # Embedding modifications: none, rand, emb, shift-emb, concat-emb
 emb_mod: shift-emb

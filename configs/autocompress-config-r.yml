@@ -1,8 +1,6 @@
 
 # Embeddings
-emb: gpt2-xl
-context_length: 1024
-layer_idx: 48
+emb: AutoCompressor-Llama-2-7b-6k
 
 # Embedding modifications: none, rand, emb, shift-emb, concat-emb
 emb_mod: shift-emb
@@ -10,6 +8,3 @@ emb_mod: shift-emb
 pca_to: 0
 ridge: True
 
-# Lags
-lags: np.arange(-2000,2001,25)
-output_dir_name: ridge-lag2k-25-all

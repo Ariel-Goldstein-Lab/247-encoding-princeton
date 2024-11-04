@@ -2,5 +2,5 @@
 # Subject
 sid: 798
 conv_ids: np.arange(1, 16)
-elecs: np.arange(1, 199)
+elecs: np.arange(1, 195)
 sig_elec_file:

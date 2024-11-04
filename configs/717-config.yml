@@ -1,0 +1,6 @@
+
+# Subject
+sid: 717
+conv_ids: np.arange(1, 2)
+elecs: np.arange(1, 255)
+sig_elec_file:

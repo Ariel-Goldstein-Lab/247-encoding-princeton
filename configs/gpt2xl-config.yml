@@ -1,15 +1,14 @@
 
 # Embeddings
 emb: gpt2-xl
-context_length: 1024
-layer_idx: 48
+layer_idx: 24
 
 # Embedding modifications: none, rand, emb, shift-emb, concat-emb
 emb_mod: shift-emb
-# pca_to not used for ridge
-pca_to: 0
-ridge: True
+
+pca_to: 50
+ridge: False
+himalaya: True
 
 # Lags
 lags: np.arange(-2000,2001,25)
-output_dir_name: ridge-lag2k-25-all
