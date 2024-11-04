@@ -20,7 +20,7 @@ from himalaya.kernel_ridge import (
 from himalaya.scoring import correlation_score, correlation_score_split
 
 
-@jit(nopython=True)
+# @jit(nopython=True)
 def build_Y(brain_signal, onsets, lags, window_size):
     """[summary]
 
@@ -41,6 +41,8 @@ def build_Y(brain_signal, onsets, lags, window_size):
         index_onsets = np.round_(onsets, 0, onsets) + lag_amount  # lag onsets
         starts = index_onsets - half_window - 1  # lag window onset
         stops = index_onsets + half_window  # lag window offset
+        starts = np.array(starts, dtype=int)
+        stops = np.array(stops, dtype=int)
         for i, (start, stop) in enumerate(zip(starts, stops)):
             Y1[i, lag] = np.mean(
                 brain_signal[start:stop].reshape(-1)
@@ -88,11 +90,24 @@ def encoding_setup(args, elec_name, elec_datum, elec_signal):
     X = X.astype("float32")
     Y = Y.astype("float32")
 
+    # TODO: HERE SUBSET BASED ON ANNOTS
+    if "data_subset_type" in args:
+        if args.data_subset_type == "ref_recap_only":
+            X = X[elec_datum.annot_type.isin(["ref", "recap", "mapping"]), :]
+            Y = Y[elec_datum.annot_type.isin(["ref", "recap", "mapping"]), :]
+            elec_datum = elec_datum[
+                elec_datum.annot_type.isin(["ref", "recap", "mapping"])
+            ]
+
     # Split into production and comprehension
     prod_X = X[elec_datum.speaker == "Speaker1", :]
     comp_X = X[elec_datum.speaker != "Speaker1", :]
     prod_Y = Y[elec_datum.speaker == "Speaker1", :]
     comp_Y = Y[elec_datum.speaker != "Speaker1", :]
+
+    # Print shapes
+    print(f"Prod X: {prod_X.shape}, Prod Y: {prod_Y.shape}")
+    print(f"Comp X: {comp_X.shape}, Comp Y: {comp_Y.shape}")
 
     # get folds
     if args.project_id == "podcast":  # podcast
@@ -155,6 +170,9 @@ def encoding_regression(args, X, Y, folds):
     Ynew = np.zeros((nSamps, nChans)).astype("float32")
     corrs = []
 
+    # TODO: TAKE OUT FIGURE OUT WHAT IS HAPPENING.
+    Y = np.nan_to_num(Y)
+
     for i in range(0, args.cv_fold_num):
 
         Xtrain, Xtest = X[folds != i], X[folds == i]
@@ -176,12 +194,16 @@ def encoding_regression(args, X, Y, folds):
                 )
         else:  # ridge cv
             alphas = np.logspace(0, 20, 10)
+            solver_params = {"n_alphas_batch": 5}
             if Xtrain.shape[0] < Xtrain.shape[1]:
                 print(f"Running KernelRidgeCV, emb_dim = {Xtrain.shape[1]}")
                 model = make_pipeline(StandardScaler(), KernelRidgeCV(alphas=alphas))
             else:
                 print(f"Running RidgeCV, emb_dim = {Xtrain.shape[1]}")
-                model = make_pipeline(StandardScaler(), RidgeCV(alphas=alphas))
+                model = make_pipeline(
+                    StandardScaler(),
+                    RidgeCV(alphas=alphas, solver_params=solver_params),
+                )
         torch.cuda.empty_cache()
         model.fit(Xtrain, Ytrain)
 
@@ -220,10 +242,10 @@ def run_encoding(args, X, Y, folds):
     else:
         corrs = np.stack(corrs)
 
-    return corrs
+    return corrs, Y_hat, Y_new
 
 
-def write_encoding_results(args, results, filename):
+def write_encoding_results(args, results, Y_hat, Y_new, filename, folds=None):
     """Write output into csv files
 
     Args:
@@ -239,5 +261,9 @@ def write_encoding_results(args, results, filename):
         results = results.cpu().numpy()
     results_df = pd.DataFrame(results)
     results_df.to_csv(filename, index=False, header=False)
+    if args.save_preds:
+        np.savez(
+            filename.replace(".csv", ".npz"), Y_hat=Y_hat, Y_new=Y_new, folds=folds
+        )
 
     return
