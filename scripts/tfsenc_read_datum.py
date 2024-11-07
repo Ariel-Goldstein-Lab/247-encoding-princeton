@@ -314,7 +314,8 @@ def process_embeddings(args, df):
 
     # Average embeddings across tokens per word
     if "glove" not in args.emb:
-        if df[f"{args.emb}_token_is_root"].sum() < len(df):
+        emb_name_subset = args.emb.split("_")[0]
+        if df[f"{emb_name_subset}_token_is_root"].sum() < len(df):
             df = ave_emb(df)  # average embs per word
 
     # Embedding manipulation (word level)
