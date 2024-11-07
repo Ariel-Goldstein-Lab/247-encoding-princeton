@@ -139,15 +139,23 @@ def single_electrode_encoding(electrode, args, datum, stitch_index):
     if args.comp and len(comp_data[0]) > 0:  # Comprehension
         if len(np.unique(comp_data[2])) < args.cv_fold_num:
             print(f"{args.sid} {elec_name} failed comp groupkfold")
+        if np.nansum(comp_data[1]) == 0:
+            print(f"{args.sid} {elec_name} comp all NaNs")
         else:
-            result = run_encoding(args, *comp_data)
-            write_encoding_results(args, result, f"{elec_name}_comp.csv")
+            result, Y_hat, Y_new = run_encoding(args, *comp_data)
+            write_encoding_results(
+                args, result, Y_hat, Y_new, f"{elec_name}_comp.csv", folds=comp_data[-1]
+            )
     if args.prod and len(prod_data[0]) > 0:  # Production
         if len(np.unique(prod_data[2])) < args.cv_fold_num:
             print(f"{args.sid} {elec_name} failed prod groupkfold")
+        if np.nansum(prod_data[1]) == 0:
+            print(f"{args.sid} {elec_name} prod all NaNs")
         else:
-            result = run_encoding(args, *prod_data)
-            write_encoding_results(args, result, f"{elec_name}_prod.csv")
+            result, Y_hat, Y_new = run_encoding(args, *prod_data)
+            write_encoding_results(
+                args, result, Y_hat, Y_new, f"{elec_name}_prod.csv", folds=prod_data[-1]
+            )
 
     return (sid, elec_name, len(prod_data[0]), len(comp_data[0]))
 
@@ -164,8 +172,8 @@ def electrodes_encoding(args, electrode_info, datum, stitch_index):
 
     summary_file = os.path.join(args.output_dir, "summary.csv")  # summary file
     if os.path.exists(summary_file):  # previous job
-        print("Previously ran the same job, checking for elecs done")
-        electrode_info = skip_elecs_done(summary_file, electrode_info)
+       print("Previously ran the same job, checking for elecs done")
+       electrode_info = skip_elecs_done(summary_file, electrode_info)
 
     for electrode in electrode_info.items():
         result = single_electrode_encoding(electrode, args, datum, stitch_index)
