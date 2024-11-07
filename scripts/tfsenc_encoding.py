@@ -90,9 +90,33 @@ def encoding_setup(args, elec_name, elec_datum, elec_signal):
     X = X.astype("float32")
     Y = Y.astype("float32")
 
-    # TODO: HERE SUBSET BASED ON ANNOTS
+    extra_train_comp_data = None
+    extra_train_prod_data = None
     if "data_subset_type" in args:
         if args.data_subset_type == "ref_recap_only":
+            if "use_nonannot_as_train" in args and args.use_nonannot_as_train:
+                extra_train_X_comp_data = X[
+                    (~elec_datum.annot_type.isin(["ref", "recap", "mapping"]))
+                    & (elec_datum.speaker != "Speaker1"),
+                    :,
+                ]
+                extra_train_Y_comp_data = Y[
+                    (~elec_datum.annot_type.isin(["ref", "recap", "mapping"]))
+                    & (elec_datum.speaker != "Speaker1"),
+                    :,
+                ]
+                extra_train_X_prod_data = X[
+                    (~elec_datum.annot_type.isin(["ref", "recap", "mapping"]))
+                    & (elec_datum.speaker == "Speaker1"),
+                    :,
+                ]
+                extra_train_Y_prod_data = Y[
+                    (~elec_datum.annot_type.isin(["ref", "recap", "mapping"]))
+                    & (elec_datum.speaker == "Speaker1"),
+                    :,
+                ]
+                extra_train_comp_data = extra_train_X_comp_data, extra_train_Y_comp_data
+                extra_train_prod_data = extra_train_X_prod_data, extra_train_Y_prod_data
             X = X[elec_datum.annot_type.isin(["ref", "recap", "mapping"]), :]
             Y = Y[elec_datum.annot_type.isin(["ref", "recap", "mapping"]), :]
             elec_datum = elec_datum[
@@ -128,7 +152,7 @@ def encoding_setup(args, elec_name, elec_datum, elec_signal):
     comp_data = comp_X, comp_Y, fold_cat_comp
     prod_data = prod_X, prod_Y, fold_cat_prod
 
-    return comp_data, prod_data
+    return comp_data, prod_data, extra_train_comp_data, extra_train_prod_data
 
 
 def encoding_correlation(CA, CB):
@@ -161,7 +185,19 @@ def encoding_correlation(CA, CB):
     return r, p, t
 
 
-def encoding_regression(args, X, Y, folds):
+def encoding_regression(args, X, Y, folds, extra_train_data=None):
+    """Run regression for VM
+
+    Args:
+        args (_type_): _description_
+        X (_type_): _description_
+        Y (_type_): _description_
+        folds (_type_): _description_
+        extra_train_data (_type_, optional): Extra training X and Y (never used in val split). Defaults to None.
+
+    Returns:
+        _type_: _description_
+    """
 
     nSamps = X.shape[0]
     nChans = Y.shape[1] if Y.shape[1:] else 1
@@ -177,6 +213,9 @@ def encoding_regression(args, X, Y, folds):
 
         Xtrain, Xtest = X[folds != i], X[folds == i]
         Ytrain, Ytest = Y[folds != i], Y[folds == i]
+        if extra_train_data is not None:
+            Xtrain = np.vstack([Xtrain, extra_train_data[0]])
+            Ytrain = np.vstack([Ytrain, extra_train_data[1]])
         Ytest -= np.mean(Ytrain, axis=0)
         Ytrain -= np.mean(Ytrain, axis=0)
 
@@ -218,10 +257,10 @@ def encoding_regression(args, X, Y, folds):
     return (YHAT, Ynew, corrs)
 
 
-def run_encoding(args, X, Y, folds):
+def run_encoding(args, X, Y, folds, extra_train_data=None):
 
     # train lm and predict
-    Y_hat, Y_new, corrs = encoding_regression(args, X, Y, folds)
+    Y_hat, Y_new, corrs = encoding_regression(args, X, Y, folds, extra_train_data)
 
     # # Old correlation
     # rps = []

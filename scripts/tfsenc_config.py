@@ -150,6 +150,8 @@ def setup_environ(args):
     )
     if "data_subset_type" in args:
         RESULT_CHILD_DIR += f"_{args.data_subset_type}"
+        if "use_nonannot_as_train" in args and args.use_nonannot_as_train:
+            RESULT_CHILD_DIR += "_extra_nonannot_train"
     args.output_dir = os.path.join(OUTPUT_DIR, RESULT_PARENT_DIR, RESULT_CHILD_DIR)
     os.makedirs(args.output_dir, exist_ok=True)
 

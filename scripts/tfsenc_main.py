@@ -131,7 +131,9 @@ def single_electrode_encoding(electrode, args, datum, stitch_index):
         return (args.sid, elec_name, 0, 0)
 
     # Set up encoding (prod/comp x, y, and folds)
-    comp_data, prod_data = encoding_setup(args, elec_name, elec_datum, elec_signal)
+    comp_data, prod_data, extra_train_comp_data, extra_train_prod_data = encoding_setup(
+        args, elec_name, elec_datum, elec_signal
+    )
     elec_name = str(sid) + "_" + elec_name
     print(f"{args.sid} {elec_name} Comp: {len(comp_data[0])} Prod: {len(prod_data[0])}")
 
@@ -142,7 +144,9 @@ def single_electrode_encoding(electrode, args, datum, stitch_index):
         if np.nansum(comp_data[1]) == 0:
             print(f"{args.sid} {elec_name} comp all NaNs")
         else:
-            result, Y_hat, Y_new = run_encoding(args, *comp_data)
+            result, Y_hat, Y_new = run_encoding(
+                args, *comp_data, extra_train_data=extra_train_comp_data
+            )
             write_encoding_results(
                 args, result, Y_hat, Y_new, f"{elec_name}_comp.csv", folds=comp_data[-1]
             )
@@ -152,7 +156,9 @@ def single_electrode_encoding(electrode, args, datum, stitch_index):
         if np.nansum(prod_data[1]) == 0:
             print(f"{args.sid} {elec_name} prod all NaNs")
         else:
-            result, Y_hat, Y_new = run_encoding(args, *prod_data)
+            result, Y_hat, Y_new = run_encoding(
+                args, *prod_data, extra_train_data=extra_train_prod_data
+            )
             write_encoding_results(
                 args, result, Y_hat, Y_new, f"{elec_name}_prod.csv", folds=prod_data[-1]
             )
@@ -172,8 +178,8 @@ def electrodes_encoding(args, electrode_info, datum, stitch_index):
 
     summary_file = os.path.join(args.output_dir, "summary.csv")  # summary file
     if os.path.exists(summary_file):  # previous job
-       print("Previously ran the same job, checking for elecs done")
-       electrode_info = skip_elecs_done(summary_file, electrode_info)
+        print("Previously ran the same job, checking for elecs done")
+        electrode_info = skip_elecs_done(summary_file, electrode_info)
 
     for electrode in electrode_info.items():
         result = single_electrode_encoding(electrode, args, datum, stitch_index)
