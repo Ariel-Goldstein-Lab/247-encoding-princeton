@@ -1,6 +1,8 @@
 import os
 from himalaya.backend import set_backend
 
+import torch
+
 
 def create_output_directory(args):
     # output_prefix_add = '-'.join(args.emb_file.split('_')[:-1])
@@ -80,6 +82,10 @@ def setup_environ(args):
     args.best_lag = -1
 
     if args.model_mod and "ridge" in args.model_mod:
+        # backend = set_backend("torch", on_error="warn")  # HACK
         backend = set_backend("torch_cuda", on_error="warn")  # HACK
+        pass
+        # os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+        # os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
     return args

@@ -161,7 +161,7 @@ def rand_emb(df):
     emb_max = df.embeddings.apply(max).max()
     emb_min = df.embeddings.apply(min).min()
 
-    rand_emb = np.random.random((len(df), 50))
+    rand_emb = np.random.random((len(df), len(df.embeddings.iloc[0])))
     rand_emb = rand_emb * (emb_max - emb_min) + emb_min
     df2 = df.copy()  # setting copy to avoid warning
     df2["embeddings"] = list(rand_emb)
@@ -338,9 +338,9 @@ def process_embeddings(args, df):
         df = shift_emb(args, df, "shift-emb")
     elif "concat-emb" in args.emb_mod:  # concatenate embeddings
         df = concat_emb(args, df, "concat-emb")
-    elif "-rand" in args.emb_mod:  # random embeddings
+    elif "rand" in args.emb_mod:  # random embeddings
         df = rand_emb(df)
-    elif "-arb" in args.emb_mod:  # artibtrary embeddings
+    elif "arb" in args.emb_mod:  # artibtrary embeddings
         df = arb_emb(df)
     else:
         pass
@@ -557,6 +557,8 @@ def read_datum(args, stitch):
     if "symbolic" in args.emb_type:
         df = emb_df
     else:
+        if "glove50" in args.emb_type:
+            base_df.reset_index(inplace=True, drop=True)
         df = pd.merge(base_df, emb_df, left_index=True, right_index=True)
         print(f"After loading: Datum loads with {len(df)} words")
 

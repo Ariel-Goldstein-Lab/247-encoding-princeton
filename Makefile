@@ -97,10 +97,10 @@ EMB := gpt-neo-1.3B
 EMB := opt-30b-q
 EMB := distilgpt2
 EMB := Llama-2-70b-hf-q
-EMB := opt-350m
 EMB := opt-30b-q
 EMB := symbolic-lang-new
 EMB := symbolic-speech-new
+EMB := glove50
 EMB := gpt-neox-20b
 CNXT_LEN := 2048
 
@@ -116,9 +116,11 @@ ALIGN_WITH :=
 
 # Choose layer of embeddings to use
 # {1 for glove, 48 for gpt2, 8 for blenderbot encoder, 16 for blenderbot decoder}
+LAYER_IDX := 23 24 25 27 28 29 31 32
+LAYER_IDX := 00 01 02 03 04 05 06 07 08 09 10 11 12
+LAYER_IDX := 00 01 02 03 04 05 06 07 08 09 $(shell seq 10 44)
+LAYER_IDX := 05 08 09 $(shell seq 10 16) $(shell seq 18 25) 27 28 29 31 32 33 34 35 37 38 39 40 42 43 44 02 04 
 LAYER_IDX := 00
-LAYER_IDX := 00 01 02 03 04 05 06 07 08 09
-LAYER_IDX := $(shell seq 10 44)
 
 # Choose whether to PCA (0 or for no pca)
 PCA_TO := 50
@@ -141,8 +143,8 @@ NM := l2
 # {l1 | l2 | max}
 
 ############## Embedding Modification ##############
-# {-rand: random datum (random embeddings)}
-# {-arb: arbitrary datum (arbitrary embeddings, same for same word)}
+# {rand: random datum (random embeddings)}
+# {arb: arbitrary datum (arbitrary embeddings, same for same word)}
 
 # {shift-emb: shifts embeddings (eg, from n-1 to n)}
 # {shift-emb1: shifts embeddings (eg, from n-1 to n)}
@@ -161,7 +163,7 @@ NM := l2
 
 EM := glove50
 EM := 
-EM := shift-emb
+EM := arb
 
 
 ############## Datum Modifications ##############
@@ -197,7 +199,7 @@ actually predicted by gpt2} (only used for glove embeddings)
 DM := lag2k-25-incorrect
 DM := lag10k-25-all
 DM := lag2k-25-all-concat-3l
-DM := lag2k-25-tenth
+DM := lag2k-25-all
 
 
 ############## Model Modification ##############
@@ -213,8 +215,8 @@ MM := ridge
 # Choose the command to run: python runs locally, echo is for debugging, sbatch
 # is for running on SLURM all lags in parallel.
 CMD := echo
-CMD := python
 CMD := sbatch submit1.sh
+CMD := python
 # {echo | python | sbatch submit1.sh}
 
 #TODO: move paths to makefile

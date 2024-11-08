@@ -55,7 +55,7 @@ def skip_elecs_done(args, electrode_info):
     elecs_num = len(electrode_info)
     for elec, count in elecs_counts.most_common():
         if (args.project_id == "tfs" and count == 4) or (
-            args.project_id == "podcast" and count == 2
+            args.project_id == "podcast" and count >= 1
         ):
             print(f"Skipping elec {elec}")
             sid_string = elec[: elec.find("_")]
@@ -272,7 +272,7 @@ def main():
     datum = read_datum(args, stitch_index)
 
     def concat(x):
-        return np.concatenate((x["embeddings2"], x["embeddings"]))
+        return np.concatenate((x["embeddings"], x["embeddings2"]))
 
     if "concat-3l" in args.datum_mod:
         args.emb_df_path = args.emb_df_path.replace("layer_13", "layer_22")
@@ -304,6 +304,49 @@ def main():
         )
         datum["embeddings"] = datum.apply(concat, axis=1)
         datum.drop("embeddings2", axis=1, inplace=True)
+    elif "symbolic-all" in args.datum_mod:
+        # add the other symbolic
+        args.emb_df_path = args.emb_df_path.replace("speech", "lang")
+        datum2 = read_datum(args, stitch_index)
+        datum.rename(columns={"embeddings": "embeddings2"}, inplace=True)
+        datum = datum.merge(
+            datum2[["word", "adjusted_onset", "embeddings"]],
+            on=["word", "adjusted_onset"],
+        )
+        datum["embeddings"] = datum.apply(concat, axis=1)
+        datum.drop("embeddings2", axis=1, inplace=True)
+        # add frequency
+        freq_df = pd.read_csv(
+            "/projects/HASSON/247/plotting/paper-prob-improb/unigram_freq.csv"
+        )  # https://www.kaggle.com/datasets/rtatman/english-word-frequency
+        datum["word_lower"] = datum.word_without_punctuation.str.lower()
+        freq_df.columns = ["word_lower", "word_freq"]
+        datum.reset_index(inplace=True)
+        datum = datum.merge(freq_df, on="word_lower")
+        datum = datum.sort_values(by="index").reset_index(drop=True)
+        datum["embeddings2"] = datum[["word_freq_overall", "word_freq"]].values.tolist()
+        datum["embeddings"] = datum.apply(concat, axis=1)
+        datum.drop(
+            ["word_lower", "index", "word_freq", "word_freq_overall", "embeddings2"],
+            axis=1,
+            inplace=True,
+        )
+    elif "word-freq-all" in args.datum_mod:
+        # add frequency
+        freq_df = pd.read_csv(
+            "/projects/HASSON/247/plotting/paper-prob-improb/unigram_freq.csv"
+        )  # https://www.kaggle.com/datasets/rtatman/english-word-frequency
+        datum["word_lower"] = datum.word_without_punctuation.str.lower()
+        freq_df.columns = ["word_lower", "word_freq"]
+        datum.reset_index(inplace=True)
+        datum = datum.merge(freq_df, on="word_lower")
+        datum = datum.sort_values(by="index").reset_index(drop=True)
+        datum["embeddings"] = datum[["word_freq_overall", "word_freq"]].values.tolist()
+        datum.drop(
+            ["word_lower", "index", "word_freq", "word_freq_overall"],
+            axis=1,
+            inplace=True,
+        )
 
     # Processing significant electrodes or individual subjects
     electrode_info = process_subjects(args)

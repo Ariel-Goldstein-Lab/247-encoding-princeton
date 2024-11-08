@@ -163,7 +163,7 @@ def encoding_cv_ridge(args, Xtra, Ytra, fold_tra, Xtes, Ytes, fold_tes, elec, mo
                 )
             solver = "random_search"
             n_iter = 20
-            alphas = np.logspace(0, 20, 10)
+            alphas = np.logspace(1, 20, 10)
             solver_params = dict(n_iter=n_iter, alphas=alphas)
             model = make_pipeline(
                 ck,
@@ -177,14 +177,28 @@ def encoding_cv_ridge(args, Xtra, Ytra, fold_tra, Xtes, Ytes, fold_tes, elec, mo
             model = make_pipeline(StandardScaler(), KernelRidgeCV(alphas=alphas))
         else:  # Ridge
             model = make_pipeline(StandardScaler(), RidgeCV(alphas=alphas))
-        model.fit(Xtraf, Ytraf)
+
+        try:
+            model.fit(Xtraf, Ytraf)
+        except:
+            print("##############svd")
+            model = make_pipeline(
+                StandardScaler(),
+                KernelRidgeCV(
+                    alphas=alphas, solver_params={"diagonalize_method": "svd"}
+                ),
+            )
+            model.fit(Xtraf, Ytraf)
 
         if len(feat_spaces) > 1:  # banded ridge model
             foldYhat_split = model.predict(Xtesf, split=True)
             YHAT[:, fold_tes == i, :] = foldYhat_split.cpu().numpy()
         else:  # one model
             foldYhat = model.predict(Xtesf)
-            YHAT[0, fold_tes == i, :] = foldYhat.cpu().numpy().reshape(-1, nChans)
+            if isinstance(foldYhat, np.ndarray):
+                YHAT[0, fold_tes == i, :] = foldYhat.reshape(-1, nChans)
+            else:
+                YHAT[0, fold_tes == i, :] = foldYhat.cpu().numpy().reshape(-1, nChans)
         Ynew[fold_tes == i, :] = Ytesf.reshape(-1, nChans)
 
     ##### CORRELATION #####
