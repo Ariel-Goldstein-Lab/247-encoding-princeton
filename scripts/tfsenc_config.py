@@ -90,6 +90,7 @@ def parse_arguments():
         args.conv_ids = eval(args.conv_ids)
         args.lags = eval(args.lags)
     except:
+        import pdb; pdb.set_trace()
         print("List parameter failed to eval")
 
     if args.emb == "glove50":  # for glove, fix layer and context len
@@ -123,6 +124,9 @@ def setup_environ(args):
         f"cnxt_{args.context_length:04d}",
         f"layer_{args.layer_idx:02d}.pkl",
     )
+    if "embedding_type" in args:
+        args.emb_df_path = args.emb_df_path.replace(".pkl", f"_{args.embedding_type}.pkl")
+    
     args.electrode_file_path = os.path.join(
         PICKLE_DIR, ("_".join([str(args.sid), "electrode_names.pkl"]))
     )
@@ -148,11 +152,21 @@ def setup_environ(args):
     RESULT_CHILD_DIR = (
         f"{args.user_id[0:2]}-{args.window_size}ms-{args.sid}_layer{args.layer_idx}"
     )
+    if "embedding_type" in args:
+        RESULT_CHILD_DIR += f"_{args.embedding_type}"
     if "data_subset_type" in args:
         RESULT_CHILD_DIR += f"_{args.data_subset_type}"
         if "use_nonannot_as_train" in args and args.use_nonannot_as_train:
             RESULT_CHILD_DIR += "_extra_nonannot_train"
+    if "skip_topic_set" in args:
+        RESULT_CHILD_DIR += f"_skip_{args.skip_topic_set}"
+    if "do_mean_center" in args:
+        RESULT_CHILD_DIR += f"_mean_center_{args.do_mean_center}"
+    if args.emb_mod == "none":
+        RESULT_CHILD_DIR += "_noshift"
     args.output_dir = os.path.join(OUTPUT_DIR, RESULT_PARENT_DIR, RESULT_CHILD_DIR)
+    if args.cv_fold_num != 10:
+        args.output_dir += f"_cv{args.cv_fold_num}"
     os.makedirs(args.output_dir, exist_ok=True)
 
     if torch.cuda.is_available():
