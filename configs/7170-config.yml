@@ -2,5 +2,5 @@
 # Subject
 sid: 7170
 conv_ids: np.arange(1, 25)
-elecs: np.arange(1, 256)
+elecs: np.arange(1, 256)  # np.array([101, 204, 211, 116, 117, 195, 194]) # np.arange(1, 256)
 sig_elec_file:

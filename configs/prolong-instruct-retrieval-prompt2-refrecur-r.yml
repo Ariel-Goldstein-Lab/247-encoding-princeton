@@ -1,9 +1,8 @@
-
 # Embeddings
-emb: gpt2-xl
+emb: Llama-3-8B-ProLong-512k-Instruct_retrieval_manual_baseline_prompt2_refrecur
 
 # Embedding modifications: none, rand, emb, shift-emb, concat-emb
 emb_mod: shift-emb
-
+# pca_to not used for ridge
 pca_to: 0
 ridge: True

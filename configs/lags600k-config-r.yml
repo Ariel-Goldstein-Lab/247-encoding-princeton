@@ -1,0 +1,3 @@
+# Lags
+lags: np.arange(-600000,600001,500)
+output_dir_name: ridge-lag600k-500-all

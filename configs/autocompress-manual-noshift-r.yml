@@ -1,9 +1,8 @@
-
 # Embeddings
-emb: gpt2-xl
+emb: AutoCompressor-Llama-2-7b-6k_retrieval_manual
 
 # Embedding modifications: none, rand, emb, shift-emb, concat-emb
-emb_mod: shift-emb
-
+emb_mod: none
+# pca_to not used for ridge
 pca_to: 0
 ridge: True

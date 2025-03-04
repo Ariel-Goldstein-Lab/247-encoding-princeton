@@ -4,7 +4,7 @@
 project_id: tfs
 window_size: 200 # window size (ms) to average for signal
 minimum_word_frequency: 0
-cv_fold_num: 10
+cv_fold_num: 5 
 emb_norm: l2
 remove_punctuation: True
 exclude_nonwords: True
@@ -13,16 +13,3 @@ detrend_signal: True # detrend signal with polynomial
 fold_correlation: True # save correlation per fold
 comp: True # Run encoding for words in comprehension
 prod: True # Run encoding for words in production
-
-# Embeddings
-emb: AutoCompressor-Llama-2-7b-6k_retrieval_manual
-context_length: 1
-layer_idx: 16
-
-# Embedding modification
-emb_mod: none
-ridge: False
-
-# Lags
-lags: np.arange(-200000,200001,100)
-output_dir_name: lag200k-100-all-erp

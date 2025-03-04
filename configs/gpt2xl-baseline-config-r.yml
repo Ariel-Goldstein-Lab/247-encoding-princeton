@@ -1,6 +1,6 @@
 
 # Embeddings
-emb: gpt2-xl
+emb: gpt2-xl_baseline_no_retrieval
 
 # Embedding modifications: none, rand, emb, shift-emb, concat-emb
 emb_mod: shift-emb
