@@ -18,6 +18,8 @@ def load_datum(file_name):
     """
     datum = load_pickle(file_name)
     df = pd.DataFrame.from_dict(datum)
+    if "embeddings" in df.columns:
+        df["embeddings"] = df["embeddings"].apply(lambda x: list(x) if x is not None else None)
     return df
 
 
@@ -28,7 +30,7 @@ def remove_punctuation(df):
 
 def drop_nan_embeddings(df):
     """Drop rows containing all nan's for embedding"""
-    is_nan = df["embeddings"].apply(lambda x: np.isnan(x).all())
+    is_nan = df["embeddings"].apply(lambda x: np.isnan(x).all() if x is not None else True)
     df = df[~is_nan]
     return df
 
@@ -407,6 +409,9 @@ def read_datum(args, stitch):
     """
     emb_df = load_datum(args.emb_df_path)
     base_df = load_datum(args.base_df_path)
+    if "refrecur" in args.emb:
+        base_df = base_df[base_df["annot_type"].isin(["ref", "recur"])]
+        base_df.index = np.arange(len(base_df))
     df = pd.merge(base_df, emb_df, left_index=True, right_index=True)
     print(f"After loading: Datum loads with {len(df)} words")
 

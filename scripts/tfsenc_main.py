@@ -82,19 +82,19 @@ def skip_elecs_done(summary_file, electrode_info):
     Returns:
         electrode_info (dict): dictionary of electrodes without electrodes with encoding results
     """
-
     summary = pd.read_csv(summary_file, header=None)
     elecs_num = len(electrode_info)
 
     elecs_done = summary.iloc[:, 1].tolist()
+    elecs_done = [elec for elec in elecs_done if elec not in ['SG1', 'SG2']]
     for elec in elecs_done:  # skipping electrodes
         print(f"Skipping elec {elec}")
         electrode_info = {
             key: val for key, val in electrode_info.items() if f"{key[0]}_{val}" != elec
         }
         elecs_num -= 1
-
-    assert elecs_num == len(electrode_info), "Wrong number of elecs skipped"
+    print(f"**************Electrode info: {electrode_info}")
+    #assert elecs_num == len(electrode_info), "Wrong number of elecs skipped"
     return electrode_info
 
 
@@ -131,7 +131,7 @@ def single_electrode_encoding(electrode, args, datum, stitch_index):
         return (args.sid, elec_name, 0, 0)
 
     # Set up encoding (prod/comp x, y, and folds)
-    comp_data, prod_data, extra_train_comp_data, extra_train_prod_data = encoding_setup(
+    comp_data, prod_data, extra_train_comp_data, extra_train_prod_data, extra_test_comp_data, extra_test_prod_data = encoding_setup(
         args, elec_name, elec_datum, elec_signal
     )
     elec_name = str(sid) + "_" + elec_name
@@ -144,11 +144,13 @@ def single_electrode_encoding(electrode, args, datum, stitch_index):
         if np.nansum(comp_data[1]) == 0:
             print(f"{args.sid} {elec_name} comp all NaNs")
         else:
-            result, Y_hat, Y_new = run_encoding(
-                args, *comp_data, extra_train_data=extra_train_comp_data
+            result, Y_hat, Y_new, Y_hat_extra, Y_new_extra, best_alphas = run_encoding(
+                args, *comp_data,
+                extra_train_data=extra_train_comp_data ,
+                extra_test_data=extra_test_comp_data
             )
             write_encoding_results(
-                args, result, Y_hat, Y_new, f"{elec_name}_comp.csv", folds=comp_data[-1]
+                args, result, Y_hat, Y_new, Y_hat_extra, Y_new_extra, best_alphas, f"{elec_name}_comp.csv", folds=comp_data[-1]
             )
     if args.prod and len(prod_data[0]) > 0:  # Production
         if len(np.unique(prod_data[2])) < args.cv_fold_num:
@@ -156,11 +158,13 @@ def single_electrode_encoding(electrode, args, datum, stitch_index):
         if np.nansum(prod_data[1]) == 0:
             print(f"{args.sid} {elec_name} prod all NaNs")
         else:
-            result, Y_hat, Y_new = run_encoding(
-                args, *prod_data, extra_train_data=extra_train_prod_data
+            result, Y_hat, Y_new, Y_hat_extra, Y_new_extra, best_alphas = run_encoding(
+                args, *prod_data,
+                extra_train_data=extra_train_prod_data,
+                extra_test_data=extra_test_prod_data
             )
             write_encoding_results(
-                args, result, Y_hat, Y_new, f"{elec_name}_prod.csv", folds=prod_data[-1]
+                args, result, Y_hat, Y_new, Y_hat_extra, Y_new_extra, best_alphas, f"{elec_name}_prod.csv", folds=prod_data[-1]
             )
 
     return (sid, elec_name, len(prod_data[0]), len(comp_data[0]))
@@ -181,11 +185,14 @@ def electrodes_encoding(args, electrode_info, datum, stitch_index):
         print("Previously ran the same job, checking for elecs done")
         electrode_info = skip_elecs_done(summary_file, electrode_info)
 
-    for electrode in electrode_info.items():
-        result = single_electrode_encoding(electrode, args, datum, stitch_index)
-        with open(summary_file, "a") as f:
-            writer = csv.writer(f, delimiter=",", lineterminator="\r\n")
-            writer.writerow(result)
+    for electrode in list(electrode_info.items())[::-1]:
+        try:
+            result = single_electrode_encoding(electrode, args, datum, stitch_index)
+            with open(summary_file, "a") as f:
+                writer = csv.writer(f, delimiter=",", lineterminator="\r\n")
+                writer.writerow(result)
+        except Exception as e:
+            print(f"FAILED on {electrode}: {e}")
 
     return None
 

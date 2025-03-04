@@ -35,7 +35,6 @@ def build_Y(brain_signal, onsets, lags, window_size):
     """
     half_window = round((window_size / 1000) * 512 / 2)  # convert to signal fs
     Y1 = np.zeros((len(onsets), len(lags)))
-
     for lag in prange(len(lags)):
         lag_amount = int(lags[lag] / 1000 * 512)  # convert fo signal fs
         index_onsets = np.round_(onsets, 0, onsets) + lag_amount  # lag onsets
@@ -47,7 +46,6 @@ def build_Y(brain_signal, onsets, lags, window_size):
             Y1[i, lag] = np.mean(
                 brain_signal[start:stop].reshape(-1)
             )  # average lag window
-
     return Y1
 
 
@@ -78,8 +76,9 @@ def get_kfolds(X, fold_num=10):
 
 
 def encoding_setup(args, elec_name, elec_datum, elec_signal):
-
     # Build x and y matrices
+    #elec_datum.to_csv('/scratch/gpfs/cc27/elec_datum_20250127_refrecur.csv')
+    #np.savez('/scratch/gpfs/cc27/elec_signal_recrecur.npz', elec_signal=elec_signal, lags=args.lags, window_size=args.window_size)
     X = np.stack(elec_datum.embeddings).astype("float64")
     Y = build_Y(
         elec_signal.reshape(-1, 1),
@@ -92,8 +91,69 @@ def encoding_setup(args, elec_name, elec_datum, elec_signal):
 
     extra_train_comp_data = None
     extra_train_prod_data = None
+    extra_test_comp_data = None
+    extra_test_prod_data = None
+
+    if "skip_topic_set" in args:
+        if args.skip_topic_set == "headpain":
+            skip_indices = elec_datum.annot_topic.isin(["head", "headpain", "headpainnothungry", "mouthhurt", "mouthhurts", "mouthpain", "nothungry", "nothungrymatzo"])
+            X = X[~skip_indices, :]
+            Y = Y[~skip_indices, :]
+            elec_datum = elec_datum[~skip_indices]
+
     if "data_subset_type" in args:
-        if args.data_subset_type == "ref_recap_only":
+        if args.data_subset_type == "ref_recap_test_only":
+            ref_recap_indices = elec_datum.annot_type.isin(["ref", "recap"])
+            not_ref_recap_indices = ~ref_recap_indices
+            
+            # Create extra test comp/prod
+            extra_test_X_comp_data = X[
+                 (elec_datum.annot_type.isin(["ref", "recap", "mapping"]))
+                 & (elec_datum.speaker != "Speaker1"),
+                 :,
+             ]
+            extra_test_Y_comp_data = Y[
+                 (elec_datum.annot_type.isin(["ref", "recap", "mapping"]))
+                 & (elec_datum.speaker != "Speaker1"),
+                 :,
+             ]
+            extra_test_X_prod_data = X[
+                 (elec_datum.annot_type.isin(["ref", "recap", "mapping"]))
+                 & (elec_datum.speaker == "Speaker1"),
+                 :,
+             ]
+            extra_test_Y_prod_data = Y[
+                 (elec_datum.annot_type.isin(["ref", "recap", "mapping"]))
+                 & (elec_datum.speaker == "Speaker1"),
+                 :,
+             ]
+            extra_test_comp_data = extra_test_X_comp_data, extra_test_Y_comp_data
+            extra_test_prod_data = extra_test_X_prod_data, extra_test_Y_prod_data
+
+            # save test elec datum
+            extra_test_comp_elec_datum = elec_datum[
+                (elec_datum.annot_type.isin(["ref", "recap", "mapping"]))
+                & (elec_datum.speaker != "Speaker1")
+            ]
+            extra_test_prod_elec_datum = elec_datum[
+                (elec_datum.annot_type.isin(["ref", "recap", "mapping"]))
+                & (elec_datum.speaker == "Speaker1")
+            ]
+            if not os.path.exists(os.path.join(args.output_dir, "prod_datum_extra_test.csv")):
+                extra_test_comp_elec_datum.to_csv(
+                    os.path.join(args.output_dir, "comp_datum_extra_test.csv"), index=False
+                )
+                extra_test_prod_elec_datum.to_csv(
+                    os.path.join(args.output_dir, "prod_datum_extra_test.csv"), index=False
+                )
+            
+            # Update X/Y/elec_datum
+            X = X[not_ref_recap_indices, :]
+            Y = Y[not_ref_recap_indices, :]
+            elec_datum = elec_datum[not_ref_recap_indices]
+            
+        elif args.data_subset_type == "ref_recap_only":
+            print("before subsetting", X.shape, Y.shape)
             if "use_nonannot_as_train" in args and args.use_nonannot_as_train:
                 extra_train_X_comp_data = X[
                     (~elec_datum.annot_type.isin(["ref", "recap", "mapping"]))
@@ -122,7 +182,18 @@ def encoding_setup(args, elec_name, elec_datum, elec_signal):
             elec_datum = elec_datum[
                 elec_datum.annot_type.isin(["ref", "recap", "mapping"])
             ]
-
+        elif args.data_subset_type == "first_match_ref_recap_only":
+            subset_length = sum(elec_datum.annot_type.isin(["ref", "recap", "mapping"]))
+            X = X[:subset_length, :]
+            Y = Y[:subset_length, :]
+            elec_datum = elec_datum.iloc[:subset_length]
+        elif args.data_subset_type == "random_match_ref_recap_only":
+            subset_length = sum(elec_datum.annot_type.isin(["ref", "recap", "mapping"]))
+            indices = np.random.choice(np.arange(X.shape[0]), subset_length, replace=False)
+            X = X[indices, :]
+            Y = Y[indices, :]
+            elec_datum = elec_datum.iloc[:subset_length]
+        print("after subsetting", X.shape, Y.shape)
     # Split into production and comprehension
     prod_X = X[elec_datum.speaker == "Speaker1", :]
     comp_X = X[elec_datum.speaker != "Speaker1", :]
@@ -132,6 +203,16 @@ def encoding_setup(args, elec_name, elec_datum, elec_signal):
     # Print shapes
     print(f"Prod X: {prod_X.shape}, Prod Y: {prod_Y.shape}")
     print(f"Comp X: {comp_X.shape}, Comp Y: {comp_Y.shape}")
+    elec_datum_prod = elec_datum[elec_datum.speaker == "Speaker1"]
+    elec_datum_comp = elec_datum[elec_datum.speaker != "Speaker1"]
+    if not os.path.exists(os.path.join(args.output_dir, "prod_datum.csv")):
+        # Just save once, because same for all elecs
+        elec_datum_prod.to_csv(
+            os.path.join(args.output_dir, "prod_datum.csv"), index=False
+        )
+        elec_datum_comp.to_csv(
+            os.path.join(args.output_dir, "comp_datum.csv"), index=False
+        )
 
     # get folds
     if args.project_id == "podcast":  # podcast
@@ -152,7 +233,7 @@ def encoding_setup(args, elec_name, elec_datum, elec_signal):
     comp_data = comp_X, comp_Y, fold_cat_comp
     prod_data = prod_X, prod_Y, fold_cat_prod
 
-    return comp_data, prod_data, extra_train_comp_data, extra_train_prod_data
+    return comp_data, prod_data, extra_train_comp_data, extra_train_prod_data, extra_test_comp_data, extra_test_prod_data
 
 
 def encoding_correlation(CA, CB):
@@ -185,7 +266,7 @@ def encoding_correlation(CA, CB):
     return r, p, t
 
 
-def encoding_regression(args, X, Y, folds, extra_train_data=None):
+def encoding_regression(args, X, Y, folds, extra_train_data=None, extra_test_data=None):
     """Run regression for VM
 
     Args:
@@ -194,6 +275,7 @@ def encoding_regression(args, X, Y, folds, extra_train_data=None):
         Y (_type_): _description_
         folds (_type_): _description_
         extra_train_data (_type_, optional): Extra training X and Y (never used in val split). Defaults to None.
+        extra_test_data (_type_, optional): Extra testing X and Y (never used in train split). Defaults to None.
 
     Returns:
         _type_: _description_
@@ -204,7 +286,14 @@ def encoding_regression(args, X, Y, folds, extra_train_data=None):
 
     YHAT = np.zeros((nSamps, nChans)).astype("float32")
     Ynew = np.zeros((nSamps, nChans)).astype("float32")
+    YHAT_extra = None
+    Ynew_extra = None
     corrs = []
+    best_alphas = np.zeros((args.cv_fold_num, nChans)).astype("float32")
+    
+    if extra_test_data:
+        YHAT_extra = np.zeros((args.cv_fold_num, extra_test_data[0].shape[0], nChans)).astype("float32")
+        Ynew_extra = np.zeros((args.cv_fold_num, extra_test_data[0].shape[0], nChans)).astype("float32")
 
     # TODO: TAKE OUT FIGURE OUT WHAT IS HAPPENING.
     Y = np.nan_to_num(Y)
@@ -216,8 +305,12 @@ def encoding_regression(args, X, Y, folds, extra_train_data=None):
         if extra_train_data is not None:
             Xtrain = np.vstack([Xtrain, extra_train_data[0]])
             Ytrain = np.vstack([Ytrain, extra_train_data[1]])
-        Ytest -= np.mean(Ytrain, axis=0)
-        Ytrain -= np.mean(Ytrain, axis=0)
+        if "do_mean_center" not in args or args.do_mean_center:
+            Ytest -= np.mean(Ytrain, axis=0)
+            Ytrain -= np.mean(Ytrain, axis=0)
+        if extra_test_data is not None:
+            Xtest_extra = extra_test_data[0]
+            Ytest_extra = extra_test_data[1] - np.mean(Ytrain, axis=0)
 
         if not args.ridge:  # ols
             if args.pca_to == 0:
@@ -234,6 +327,8 @@ def encoding_regression(args, X, Y, folds, extra_train_data=None):
         else:  # ridge cv
             alphas = np.logspace(0, 20, 10)
             solver_params = {"n_alphas_batch": 5}
+            if "do_mean_center" in args and not args.do_mean_center:
+                solver_params["fit_intercept"] = True
             if Xtrain.shape[0] < Xtrain.shape[1]:
                 print(f"Running KernelRidgeCV, emb_dim = {Xtrain.shape[1]}")
                 model = make_pipeline(StandardScaler(), KernelRidgeCV(alphas=alphas))
@@ -245,22 +340,26 @@ def encoding_regression(args, X, Y, folds, extra_train_data=None):
                 )
         torch.cuda.empty_cache()
         model.fit(Xtrain, Ytrain)
-
+        best_alphas[i, :] = model.named_steps['ridgecv'].best_alphas_.to("cpu")
         # Prediction & Correlation
         foldYhat = model.predict(Xtest)
         fold_cors = correlation_score(Ytest, foldYhat)
         corrs.append(fold_cors)
+        if extra_test_data:
+            foldYhat_extra = model.predict(Xtest_extra)
+            YHAT_extra[i, :] = foldYhat_extra.reshape(-1, nChans)
+            Ynew_extra[i, :] = Ytest_extra.reshape(-1, nChans)
 
         Ynew[folds == i, :] = Ytest.reshape(-1, nChans)
         YHAT[folds == i, :] = foldYhat.reshape(-1, nChans)
 
-    return (YHAT, Ynew, corrs)
+    return (YHAT, Ynew, corrs, YHAT_extra, Ynew_extra, best_alphas)
 
 
-def run_encoding(args, X, Y, folds, extra_train_data=None):
+def run_encoding(args, X, Y, folds, extra_train_data=None, extra_test_data=None):
 
     # train lm and predict
-    Y_hat, Y_new, corrs = encoding_regression(args, X, Y, folds, extra_train_data)
+    Y_hat, Y_new, corrs, Y_hat_extra, Y_new_extra, best_alphas = encoding_regression(args, X, Y, folds, extra_train_data, extra_test_data)
 
     # # Old correlation
     # rps = []
@@ -281,10 +380,10 @@ def run_encoding(args, X, Y, folds, extra_train_data=None):
     else:
         corrs = np.stack(corrs)
 
-    return corrs, Y_hat, Y_new
+    return corrs, Y_hat, Y_new, Y_hat_extra, Y_new_extra, best_alphas
 
 
-def write_encoding_results(args, results, Y_hat, Y_new, filename, folds=None):
+def write_encoding_results(args, results, Y_hat, Y_new, Y_hat_extra, Y_new_extra, best_alphas, filename, folds=None):
     """Write output into csv files
 
     Args:
@@ -302,7 +401,9 @@ def write_encoding_results(args, results, Y_hat, Y_new, filename, folds=None):
     results_df.to_csv(filename, index=False, header=False)
     if args.save_preds:
         np.savez(
-            filename.replace(".csv", ".npz"), Y_hat=Y_hat, Y_new=Y_new, folds=folds
+            filename.replace(".csv", ".npz"), Y_hat=Y_hat, Y_new=Y_new, folds=folds,
+            Y_hat_extra=Y_hat_extra, Y_new_extra=Y_new_extra,
+            best_alphas=best_alphas
         )
 
     return
