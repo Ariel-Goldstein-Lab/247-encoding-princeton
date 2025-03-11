@@ -72,7 +72,7 @@ def process_electrodes(args):
     return electrode_info
 
 
-def skip_elecs_done(summary_file, electrode_info):
+def skip_elecs_done(summary_file, electrode_info, args):
     """Skip electrodes with encoding results already
 
     Args:
@@ -82,11 +82,17 @@ def skip_elecs_done(summary_file, electrode_info):
     Returns:
         electrode_info (dict): dictionary of electrodes without electrodes with encoding results
     """
-    summary = pd.read_csv(summary_file, header=None)
     elecs_num = len(electrode_info)
+    #summary = pd.read_csv(summary_file, header=None)
 
-    elecs_done = summary.iloc[:, 1].tolist()
-    elecs_done = [elec for elec in elecs_done if elec not in ['SG1', 'SG2']]
+    #elecs_done = summary.iloc[:, 1].tolist()
+    #elecs_done = [elec for elec in elecs_done if elec not in ['SG1', 'SG2']]
+    if "perm" in args and args.perm:
+        elecs_done = [os.path.split(fname)[-1].split("_prod")[0]
+                    for fname in glob.glob(os.path.join(os.path.split(summary_file)[0], "*_prod_perm.csv"))]
+    else:
+        elecs_done = [os.path.split(fname)[-1].split("_prod")[0]
+                    for fname in glob.glob(os.path.join(os.path.split(summary_file)[0], "*_prod.csv"))]
     for elec in elecs_done:  # skipping electrodes
         print(f"Skipping elec {elec}")
         electrode_info = {
@@ -144,28 +150,50 @@ def single_electrode_encoding(electrode, args, datum, stitch_index):
         if np.nansum(comp_data[1]) == 0:
             print(f"{args.sid} {elec_name} comp all NaNs")
         else:
-            result, Y_hat, Y_new, Y_hat_extra, Y_new_extra, best_alphas = run_encoding(
-                args, *comp_data,
-                extra_train_data=extra_train_comp_data ,
-                extra_test_data=extra_test_comp_data
-            )
-            write_encoding_results(
-                args, result, Y_hat, Y_new, Y_hat_extra, Y_new_extra, best_alphas, f"{elec_name}_comp.csv", folds=comp_data[-1]
-            )
+            if "permute" in args and args.permute:
+                result, Y_hat, Y_new, Y_hat_extra, Y_new_extra = run_encoding(
+                    args, *comp_data,
+                    extra_train_data=extra_train_comp_data,
+                    extra_test_data=extra_test_comp_data,
+                    permute=True
+                )
+                write_encoding_results(
+                    args, result, Y_hat, Y_new, Y_hat_extra, Y_new_extra, f"{elec_name}_comp_perm.csv", folds=prod_data[-1]
+                )
+            else:
+                result, Y_hat, Y_new, Y_hat_extra, Y_new_extra = run_encoding(
+                    args, *comp_data,
+                    extra_train_data=extra_train_comp_data ,
+                    extra_test_data=extra_test_comp_data,
+                )
+                write_encoding_results(
+                    args, result, Y_hat, Y_new, Y_hat_extra, Y_new_extra, f"{elec_name}_comp.csv", folds=comp_data[-1]
+                )
     if args.prod and len(prod_data[0]) > 0:  # Production
         if len(np.unique(prod_data[2])) < args.cv_fold_num:
             print(f"{args.sid} {elec_name} failed prod groupkfold")
         if np.nansum(prod_data[1]) == 0:
             print(f"{args.sid} {elec_name} prod all NaNs")
         else:
-            result, Y_hat, Y_new, Y_hat_extra, Y_new_extra, best_alphas = run_encoding(
-                args, *prod_data,
-                extra_train_data=extra_train_prod_data,
-                extra_test_data=extra_test_prod_data
-            )
-            write_encoding_results(
-                args, result, Y_hat, Y_new, Y_hat_extra, Y_new_extra, best_alphas, f"{elec_name}_prod.csv", folds=prod_data[-1]
-            )
+            if "permute" in args and args.permute:
+                result, Y_hat, Y_new, Y_hat_extra, Y_new_extra = run_encoding(
+                    args, *prod_data,
+                    extra_train_data=extra_train_prod_data,
+                    extra_test_data=extra_test_prod_data,
+                    permute=True
+                )
+                write_encoding_results(
+                    args, result, Y_hat, Y_new, Y_hat_extra, Y_new_extra, f"{elec_name}_prod_perm.csv", folds=prod_data[-1]
+                )
+            else:
+                result, Y_hat, Y_new, Y_hat_extra, Y_new_extra = run_encoding(
+                    args, *prod_data,
+                    extra_train_data=extra_train_prod_data,
+                    extra_test_data=extra_test_prod_data
+                )
+                write_encoding_results(
+                    args, result, Y_hat, Y_new, Y_hat_extra, Y_new_extra, f"{elec_name}_prod.csv", folds=prod_data[-1]
+                )
 
     return (sid, elec_name, len(prod_data[0]), len(comp_data[0]))
 
@@ -183,7 +211,7 @@ def electrodes_encoding(args, electrode_info, datum, stitch_index):
     summary_file = os.path.join(args.output_dir, "summary.csv")  # summary file
     if os.path.exists(summary_file):  # previous job
         print("Previously ran the same job, checking for elecs done")
-        electrode_info = skip_elecs_done(summary_file, electrode_info)
+        electrode_info = skip_elecs_done(summary_file, electrode_info, args)
 
     for electrode in list(electrode_info.items())[::-1]:
         try:

@@ -266,6 +266,58 @@ def encoding_correlation(CA, CB):
     return r, p, t
 
 
+def encoding_regression_permutation(args, X, Y, folds, num_perm=1000, min_roll=500):
+    """Run regression for VM
+
+    Args:
+        args (_type_): _description_
+        X (_type_): _description_
+        Y (_type_): _description_
+        folds (_type_): _description_
+        extra_train_data (_type_, optional): Extra training X and Y (never used in val split). Defaults to None.
+        extra_test_data (_type_, optional): Extra testing X and Y (never used in train split). Defaults to None.
+
+    Returns:
+        _type_: _description_
+    """
+    nSamps = X.shape[0]
+    nChans = Y.shape[1] if Y.shape[1:] else 1
+
+    YHAT = np.zeros((nSamps, nChans * num_perm)).astype("float32")
+    Ynew = np.zeros((nSamps, nChans * num_perm)).astype("float32")
+    YHAT_extra = None
+    Ynew_extra = None
+    corrs = []
+    
+    Y = np.nan_to_num(Y)
+    # Circular shift
+    np.random.seed(123)
+    Yperm = np.zeros((nSamps, nChans * num_perm))
+    for i in range(num_perm):
+        Yperm[:, i * nChans : (i + 1) * nChans] = np.roll(Y, np.random.choice(range(min_roll, nSamps - min_roll)), axis=0)
+
+    alphas = [10581255000000.0]
+    solver_params = {"n_targets_batch": 161 * num_perm}
+    model = make_pipeline(
+        StandardScaler(),
+        RidgeCV(alphas=alphas, solver_params=solver_params),
+    )
+    
+    for i in range(0, args.cv_fold_num):
+        Xtrain, Xtest = X[folds != i], X[folds == i]
+        Ytrain, Ytest = Yperm[folds != i], Yperm[folds == i]
+        import time
+        t0 = time.time()
+        model.fit(Xtrain, Ytrain)
+        print(time.time() - t0)
+        foldYhat = model.predict(Xtest)
+        fold_corrs = correlation_score(Ytest, foldYhat)
+        corrs.append(fold_corrs)
+        Ynew[folds == i, :] = Ytest.reshape(-1, nChans * num_perm)
+        YHAT[folds == i, :] = foldYhat.reshape(-1, nChans * num_perm)
+    return (YHAT, Ynew, corrs, YHAT_extra, Ynew_extra, None)
+
+
 def encoding_regression(args, X, Y, folds, extra_train_data=None, extra_test_data=None):
     """Run regression for VM
 
@@ -289,7 +341,6 @@ def encoding_regression(args, X, Y, folds, extra_train_data=None, extra_test_dat
     YHAT_extra = None
     Ynew_extra = None
     corrs = []
-    best_alphas = np.zeros((args.cv_fold_num, nChans)).astype("float32")
     
     if extra_test_data:
         YHAT_extra = np.zeros((args.cv_fold_num, extra_test_data[0].shape[0], nChans)).astype("float32")
@@ -340,7 +391,6 @@ def encoding_regression(args, X, Y, folds, extra_train_data=None, extra_test_dat
                 )
         torch.cuda.empty_cache()
         model.fit(Xtrain, Ytrain)
-        best_alphas[i, :] = model.named_steps['ridgecv'].best_alphas_.to("cpu")
         # Prediction & Correlation
         foldYhat = model.predict(Xtest)
         fold_cors = correlation_score(Ytest, foldYhat)
@@ -353,13 +403,16 @@ def encoding_regression(args, X, Y, folds, extra_train_data=None, extra_test_dat
         Ynew[folds == i, :] = Ytest.reshape(-1, nChans)
         YHAT[folds == i, :] = foldYhat.reshape(-1, nChans)
 
-    return (YHAT, Ynew, corrs, YHAT_extra, Ynew_extra, best_alphas)
+    return (YHAT, Ynew, corrs, YHAT_extra, Ynew_extra)
 
 
-def run_encoding(args, X, Y, folds, extra_train_data=None, extra_test_data=None):
+def run_encoding(args, X, Y, folds, extra_train_data=None, extra_test_data=None, permute=False):
 
     # train lm and predict
-    Y_hat, Y_new, corrs, Y_hat_extra, Y_new_extra, best_alphas = encoding_regression(args, X, Y, folds, extra_train_data, extra_test_data)
+    if permute:
+        Y_hat, Y_new, corrs, Y_hat_extra, Y_new_extra = encoding_regression_permutation(args, X, Y, folds)
+    else:
+        Y_hat, Y_new, corrs, Y_hat_extra, Y_new_extra = encoding_regression(args, X, Y, folds, extra_train_data, extra_test_data)
 
     # # Old correlation
     # rps = []
@@ -380,10 +433,10 @@ def run_encoding(args, X, Y, folds, extra_train_data=None, extra_test_data=None)
     else:
         corrs = np.stack(corrs)
 
-    return corrs, Y_hat, Y_new, Y_hat_extra, Y_new_extra, best_alphas
+    return corrs, Y_hat, Y_new, Y_hat_extra, Y_new_extra
 
 
-def write_encoding_results(args, results, Y_hat, Y_new, Y_hat_extra, Y_new_extra, best_alphas, filename, folds=None):
+def write_encoding_results(args, results, Y_hat, Y_new, Y_hat_extra, Y_new_extra, filename, folds=None):
     """Write output into csv files
 
     Args:
@@ -399,11 +452,10 @@ def write_encoding_results(args, results, Y_hat, Y_new, Y_hat_extra, Y_new_extra
         results = results.cpu().numpy()
     results_df = pd.DataFrame(results)
     results_df.to_csv(filename, index=False, header=False)
-    if args.save_preds:
+    if "save_preds" in args and args.save_preds:
         np.savez(
             filename.replace(".csv", ".npz"), Y_hat=Y_hat, Y_new=Y_new, folds=folds,
             Y_hat_extra=Y_hat_extra, Y_new_extra=Y_new_extra,
-            best_alphas=best_alphas
         )
 
     return
