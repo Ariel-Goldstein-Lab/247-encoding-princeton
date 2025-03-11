@@ -119,13 +119,6 @@ def setup_environ(args):
     PICKLE_DIR = os.path.join(DATA_DIR, args.project_id, str(args.sid), "pickles")
     EMB_DIR = os.path.join(PICKLE_DIR, "embeddings", args.emb, "full")  # TODO
     args.base_df_path = os.path.join(EMB_DIR, "base_df.pkl")
-    args.emb_df_path = os.path.join(
-        EMB_DIR,
-        f"cnxt_{args.context_length:04d}",
-        f"layer_{args.layer_idx:02d}.pkl",
-    )
-    if "embedding_type" in args:
-        args.emb_df_path = args.emb_df_path.replace(".pkl", f"_{args.embedding_type}.pkl")
     
     args.electrode_file_path = os.path.join(
         PICKLE_DIR, ("_".join([str(args.sid), "electrode_names.pkl"]))
@@ -148,20 +141,14 @@ def setup_environ(args):
     # output directory paths
     # OUTPUT_DIR = os.path.join(os.getcwd(), "results", args.project_id)
     OUTPUT_DIR = os.path.join("/scratch/gpfs/cc27/", "results", args.project_id)
-    RESULT_PARENT_DIR = f"{args.user_id[0:2]}-{args.project_id}-{args.sid}-{args.emb}-{args.output_dir_name}-cl{args.context_length}"
+    RESULT_PARENT_DIR = f"{args.user_id[0:2]}-{args.project_id}-{args.sid}-{args.output_dir_name}-{args.embeds_name}"
     RESULT_CHILD_DIR = (
-        f"{args.user_id[0:2]}-{args.window_size}ms-{args.sid}_layer{args.layer_idx}"
+        f"{args.user_id[0:2]}-{args.window_size}ms-{args.sid}"
     )
-    if "embedding_type" in args:
-        RESULT_CHILD_DIR += f"_{args.embedding_type}"
     if "data_subset_type" in args:
         RESULT_CHILD_DIR += f"_{args.data_subset_type}"
         if "use_nonannot_as_train" in args and args.use_nonannot_as_train:
             RESULT_CHILD_DIR += "_extra_nonannot_train"
-    if "skip_topic_set" in args:
-        RESULT_CHILD_DIR += f"_skip_{args.skip_topic_set}"
-    if "do_mean_center" in args:
-        RESULT_CHILD_DIR += f"_mean_center_{args.do_mean_center}"
     if args.emb_mod == "none":
         RESULT_CHILD_DIR += "_noshift"
     args.output_dir = os.path.join(OUTPUT_DIR, RESULT_PARENT_DIR, RESULT_CHILD_DIR)

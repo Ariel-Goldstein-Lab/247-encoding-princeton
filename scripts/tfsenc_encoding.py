@@ -94,13 +94,6 @@ def encoding_setup(args, elec_name, elec_datum, elec_signal):
     extra_test_comp_data = None
     extra_test_prod_data = None
 
-    if "skip_topic_set" in args:
-        if args.skip_topic_set == "headpain":
-            skip_indices = elec_datum.annot_topic.isin(["head", "headpain", "headpainnothungry", "mouthhurt", "mouthhurts", "mouthpain", "nothungry", "nothungrymatzo"])
-            X = X[~skip_indices, :]
-            Y = Y[~skip_indices, :]
-            elec_datum = elec_datum[~skip_indices]
-
     if "data_subset_type" in args:
         if args.data_subset_type == "ref_recap_test_only":
             ref_recap_indices = elec_datum.annot_type.isin(["ref", "recap"])
@@ -341,6 +334,7 @@ def encoding_regression(args, X, Y, folds, extra_train_data=None, extra_test_dat
     YHAT_extra = None
     Ynew_extra = None
     corrs = []
+    corrs_split = []
     
     if extra_test_data:
         YHAT_extra = np.zeros((args.cv_fold_num, extra_test_data[0].shape[0], nChans)).astype("float32")
@@ -356,14 +350,18 @@ def encoding_regression(args, X, Y, folds, extra_train_data=None, extra_test_dat
         if extra_train_data is not None:
             Xtrain = np.vstack([Xtrain, extra_train_data[0]])
             Ytrain = np.vstack([Ytrain, extra_train_data[1]])
-        if "do_mean_center" not in args or args.do_mean_center:
-            Ytest -= np.mean(Ytrain, axis=0)
-            Ytrain -= np.mean(Ytrain, axis=0)
         if extra_test_data is not None:
             Xtest_extra = extra_test_data[0]
             Ytest_extra = extra_test_data[1] - np.mean(Ytrain, axis=0)
 
-        if not args.ridge:  # ols
+        alphas = np.logspace(0, 20, 10)
+        n_iter = 50
+        if getattr(args, "kernel_sizes", None) is not None:
+            kernel_sizes_cumsum = np.cumsum(args.kernel_sizes)
+            ck = ColumnKernelizer([(f"kernel_{i}", Kernelizer(kernel="linear"), np.arange(kernel_start, kernel_stop))
+                                   for i, (kernel_start, kernel_stop) in enumerate(zip([0]+list(kernel_sizes_cumsum[:-1]), kernel_sizes_cumsum))])
+            model = make_pipeline(StandardScaler(), ck, MultipleKernelRidgeCV(kernels="precomputed", solver_params=dict(alphas=alphas, n_iter=n_iter, n_alphas_batch=50)))
+        elif not args.ridge:  # ols
             if args.pca_to == 0:
                 print(f"Running OLS, emb_dim = {Xtrain.shape[1]}")
                 if args.himalaya:
@@ -376,10 +374,7 @@ def encoding_regression(args, X, Y, folds, extra_train_data=None, extra_test_dat
                     StandardScaler(), PCA(args.pca_to, whiten=True), LinearRegression()
                 )
         else:  # ridge cv
-            alphas = np.logspace(0, 20, 10)
             solver_params = {"n_alphas_batch": 5}
-            if "do_mean_center" in args and not args.do_mean_center:
-                solver_params["fit_intercept"] = True
             if Xtrain.shape[0] < Xtrain.shape[1]:
                 print(f"Running KernelRidgeCV, emb_dim = {Xtrain.shape[1]}")
                 model = make_pipeline(StandardScaler(), KernelRidgeCV(alphas=alphas))
@@ -394,7 +389,11 @@ def encoding_regression(args, X, Y, folds, extra_train_data=None, extra_test_dat
         # Prediction & Correlation
         foldYhat = model.predict(Xtest)
         fold_cors = correlation_score(Ytest, foldYhat)
+        # Save split scores
+        foldYhat_split = model.predict(Xtest, split=True)
+        fold_cor_split = correlation_score_split(Ytest, foldYhat_split)
         corrs.append(fold_cors)
+        corrs_split.append(fold_cor_split)
         if extra_test_data:
             foldYhat_extra = model.predict(Xtest_extra)
             YHAT_extra[i, :] = foldYhat_extra.reshape(-1, nChans)
@@ -403,16 +402,16 @@ def encoding_regression(args, X, Y, folds, extra_train_data=None, extra_test_dat
         Ynew[folds == i, :] = Ytest.reshape(-1, nChans)
         YHAT[folds == i, :] = foldYhat.reshape(-1, nChans)
 
-    return (YHAT, Ynew, corrs, YHAT_extra, Ynew_extra)
+    return (YHAT, Ynew, corrs, corrs_split, YHAT_extra, Ynew_extra)
 
 
 def run_encoding(args, X, Y, folds, extra_train_data=None, extra_test_data=None, permute=False):
 
     # train lm and predict
     if permute:
-        Y_hat, Y_new, corrs, Y_hat_extra, Y_new_extra = encoding_regression_permutation(args, X, Y, folds)
+        Y_hat, Y_new, corrs, corrs_split, Y_hat_extra, Y_new_extra = encoding_regression_permutation(args, X, Y, folds)
     else:
-        Y_hat, Y_new, corrs, Y_hat_extra, Y_new_extra = encoding_regression(args, X, Y, folds, extra_train_data, extra_test_data)
+        Y_hat, Y_new, corrs, corrs_split, Y_hat_extra, Y_new_extra = encoding_regression(args, X, Y, folds, extra_train_data, extra_test_data)
 
     # # Old correlation
     # rps = []
@@ -433,10 +432,10 @@ def run_encoding(args, X, Y, folds, extra_train_data=None, extra_test_data=None,
     else:
         corrs = np.stack(corrs)
 
-    return corrs, Y_hat, Y_new, Y_hat_extra, Y_new_extra
+    return corrs, corrs_split, Y_hat, Y_new, Y_hat_extra, Y_new_extra
 
 
-def write_encoding_results(args, results, Y_hat, Y_new, Y_hat_extra, Y_new_extra, filename, folds=None):
+def write_encoding_results(args, results, result_split, Y_hat, Y_new, Y_hat_extra, Y_new_extra, filename, folds=None):
     """Write output into csv files
 
     Args:
@@ -450,8 +449,13 @@ def write_encoding_results(args, results, Y_hat, Y_new, Y_hat_extra, Y_new_extra
     filename = os.path.join(args.output_dir, filename)
     if torch.is_tensor(results):
         results = results.cpu().numpy()
+    if torch.is_tensor(result_split):
+        results_split_df = result_split.cpu().numpy()
     results_df = pd.DataFrame(results)
     results_df.to_csv(filename, index=False, header=False)
+    results_split_df = pd.DataFrame(result_split)
+    results_split_df.to_csv(filename.replace(".csv", "_split.csv"), index=False, header=False)
+    
     if "save_preds" in args and args.save_preds:
         np.savez(
             filename.replace(".csv", ".npz"), Y_hat=Y_hat, Y_new=Y_new, folds=folds,

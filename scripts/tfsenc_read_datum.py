@@ -407,7 +407,15 @@ def read_datum(args, stitch):
     Returns:
         df (df): processed and filtered datum
     """
-    emb_df = load_datum(args.emb_df_path)
+    args.kernel_sizes = []
+    for idx, emb_df_path in enumerate(args.emb_df_paths.split()):
+        curr_emb_df = load_datum(emb_df_path)
+        args.kernel_sizes.append(len(curr_emb_df['embeddings'].iloc[0]))
+        if idx == 0:
+            emb_df = curr_emb_df
+        else:
+            assert(emb_df.shape[0] == curr_emb_df.shape[0])
+            emb_df['embeddings'] = emb_df['embeddings'] + curr_emb_df['embeddings']
     base_df = load_datum(args.base_df_path)
     if "refrecur" in args.emb:
         base_df = base_df[base_df["annot_type"].isin(["ref", "recur"])]
