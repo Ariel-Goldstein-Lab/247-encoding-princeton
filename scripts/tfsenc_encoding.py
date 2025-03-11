@@ -398,7 +398,10 @@ def encoding_regression(args, X, Y, folds, extra_train_data=None, extra_test_dat
             foldYhat_extra = model.predict(Xtest_extra)
             YHAT_extra[i, :] = foldYhat_extra.reshape(-1, nChans)
             Ynew_extra[i, :] = Ytest_extra.reshape(-1, nChans)
-
+        if torch.is_tensor(Ytest):
+            Ytest = Ytest.cpu()
+        if torch.is_tensor(foldYhat):
+            foldYhat = foldYhat.cpu()
         Ynew[folds == i, :] = Ytest.reshape(-1, nChans)
         YHAT[folds == i, :] = foldYhat.reshape(-1, nChans)
 
