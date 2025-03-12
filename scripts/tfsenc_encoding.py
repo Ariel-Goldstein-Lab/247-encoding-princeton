@@ -311,7 +311,7 @@ def encoding_regression_permutation(args, X, Y, folds, num_perm=1000, min_roll=5
     return (YHAT, Ynew, corrs, YHAT_extra, Ynew_extra, None)
 
 
-def encoding_regression(args, X, Y, folds, extra_train_data=None, extra_test_data=None):
+def encoding_regression(args, X, Y, folds, extra_train_data=None, extra_test_data=None, debug=False):
     """Run regression for VM
 
     Args:
@@ -342,7 +342,10 @@ def encoding_regression(args, X, Y, folds, extra_train_data=None, extra_test_dat
 
     # TODO: TAKE OUT FIGURE OUT WHAT IS HAPPENING.
     Y = np.nan_to_num(Y)
-
+    n_iter = 50
+    if debug:
+        n_iter = 1
+    
     for i in range(0, args.cv_fold_num):
 
         Xtrain, Xtest = X[folds != i], X[folds == i]
@@ -355,7 +358,6 @@ def encoding_regression(args, X, Y, folds, extra_train_data=None, extra_test_dat
             Ytest_extra = extra_test_data[1] - np.mean(Ytrain, axis=0)
 
         alphas = np.logspace(0, 20, 10)
-        n_iter = 50
         if getattr(args, "kernel_sizes", None) is not None:
             kernel_sizes_cumsum = np.cumsum(args.kernel_sizes)
             ck = ColumnKernelizer([(f"kernel_{i}", Kernelizer(kernel="linear"), np.arange(kernel_start, kernel_stop))
@@ -392,6 +394,7 @@ def encoding_regression(args, X, Y, folds, extra_train_data=None, extra_test_dat
         # Save split scores
         foldYhat_split = model.predict(Xtest, split=True)
         fold_cor_split = correlation_score_split(Ytest, foldYhat_split)
+        
         corrs.append(fold_cors)
         corrs_split.append(fold_cor_split)
         if extra_test_data:
@@ -434,6 +437,10 @@ def run_encoding(args, X, Y, folds, extra_train_data=None, extra_test_data=None,
         corrs = torch.stack(corrs)
     else:
         corrs = np.stack(corrs)
+    if torch.is_tensor(corrs_split[0]):
+        corrs_split = torch.stack(corrs_split)
+    else:
+        corrs_split = np.stack(corrs_split)
 
     return corrs, corrs_split, Y_hat, Y_new, Y_hat_extra, Y_new_extra
 
@@ -453,13 +460,18 @@ def write_encoding_results(args, results, result_split, Y_hat, Y_new, Y_hat_extr
     if torch.is_tensor(results):
         results = results.cpu().numpy()
     if torch.is_tensor(result_split):
-        results_split_df = result_split.cpu().numpy()
+        result_split = result_split.cpu().numpy()
     results_df = pd.DataFrame(results)
     results_df.to_csv(filename, index=False, header=False)
-    results_split_df = pd.DataFrame(result_split)
-    results_split_df.to_csv(filename.replace(".csv", "_split.csv"), index=False, header=False)
+    np.savez(filename.replace(".csv", "_split.npz"), result_split=result_split)
     
     if "save_preds" in args and args.save_preds:
+        if torch.is_tensor(Y_hat):
+            Y_hat = Y_hat.cpu().numpy()
+        if torch.is_tensor(Y_new):
+            Y_new = Y_new.cpu().numpy()
+        if torch.is_tensor(folds):
+            folds = folds.cpu().numpy()
         np.savez(
             filename.replace(".csv", ".npz"), Y_hat=Y_hat, Y_new=Y_new, folds=folds,
             Y_hat_extra=Y_hat_extra, Y_new_extra=Y_new_extra,
