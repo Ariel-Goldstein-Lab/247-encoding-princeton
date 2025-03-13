@@ -311,7 +311,8 @@ def encoding_regression_permutation(args, X, Y, folds, num_perm=1000, min_roll=5
     return (YHAT, Ynew, corrs, YHAT_extra, Ynew_extra, None)
 
 
-def encoding_regression(args, X, Y, folds, extra_train_data=None, extra_test_data=None, debug=False):
+def encoding_regression(args, X, Y, folds, extra_train_data=None, extra_test_data=None,
+                        n_alphas_batch=50, n_iter=20, debug=False):
     """Run regression for VM
 
     Args:
@@ -342,7 +343,6 @@ def encoding_regression(args, X, Y, folds, extra_train_data=None, extra_test_dat
 
     # TODO: TAKE OUT FIGURE OUT WHAT IS HAPPENING.
     Y = np.nan_to_num(Y)
-    n_iter = 50
     if debug:
         n_iter = 1
     
@@ -360,9 +360,24 @@ def encoding_regression(args, X, Y, folds, extra_train_data=None, extra_test_dat
         alphas = np.logspace(0, 20, 10)
         if getattr(args, "kernel_sizes", None) is not None:
             kernel_sizes_cumsum = np.cumsum(args.kernel_sizes)
-            ck = ColumnKernelizer([(f"kernel_{i}", Kernelizer(kernel="linear"), np.arange(kernel_start, kernel_stop))
-                                   for i, (kernel_start, kernel_stop) in enumerate(zip([0]+list(kernel_sizes_cumsum[:-1]), kernel_sizes_cumsum))])
-            model = make_pipeline(StandardScaler(), ck, MultipleKernelRidgeCV(kernels="precomputed", solver_params=dict(alphas=alphas, n_iter=n_iter, n_alphas_batch=50)))
+            if getattr(args, "bridge_type", None) == "GroupRidgeCV":
+                print("Using GroupRidgeCV")
+                ct = ColumnTransformerNoStack([(f"group_{i}", StandardScaler(), np.arange(kernel_start, kernel_stop))
+                                               for i, (kernel_start, kernel_stop) in enumerate(zip([0]+list(kernel_sizes_cumsum[:-1]), kernel_sizes_cumsum))])
+                grcv_model = GroupRidgeCV(groups="input", solver_params=dict(alphas=alphas, n_iter=n_iter, n_alphas_batch=n_alphas_batch))
+                model = make_pipeline(ct, grcv_model)
+            elif getattr(args, "bridge_type", None) == "RidgeCV":
+                print(f"Running RidgeCV, emb_dim = {Xtrain.shape[1]}")
+                solver_params = {"n_alphas_batch": n_alphas_batch}
+                model = make_pipeline(
+                    StandardScaler(),
+                    RidgeCV(alphas=alphas, solver_params=solver_params),
+                )
+            else:
+                print("Using MultipleKernelRidgeCV")
+                ck = ColumnKernelizer([(f"kernel_{i}", Kernelizer(kernel="linear"), np.arange(kernel_start, kernel_stop))
+                                    for i, (kernel_start, kernel_stop) in enumerate(zip([0]+list(kernel_sizes_cumsum[:-1]), kernel_sizes_cumsum))])
+                model = make_pipeline(StandardScaler(), ck, MultipleKernelRidgeCV(kernels="precomputed", solver_params=dict(alphas=alphas, n_iter=n_iter, n_alphas_batch=n_alphas_batch)))
         elif not args.ridge:  # ols
             if args.pca_to == 0:
                 print(f"Running OLS, emb_dim = {Xtrain.shape[1]}")
@@ -392,8 +407,11 @@ def encoding_regression(args, X, Y, folds, extra_train_data=None, extra_test_dat
         foldYhat = model.predict(Xtest)
         fold_cors = correlation_score(Ytest, foldYhat)
         # Save split scores
-        foldYhat_split = model.predict(Xtest, split=True)
-        fold_cor_split = correlation_score_split(Ytest, foldYhat_split)
+        if getattr(args, "bridge_type", None) != "RidgeCV":
+            foldYhat_split = model.predict(Xtest, split=True)
+            fold_cor_split = correlation_score_split(Ytest, foldYhat_split)
+        else:
+            fold_cor_split = None
         
         corrs.append(fold_cors)
         corrs_split.append(fold_cor_split)
