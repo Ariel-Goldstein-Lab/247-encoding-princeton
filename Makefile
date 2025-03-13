@@ -14,17 +14,17 @@ link-data:
 
 # commands
 CMD := echo
-CMD := python
 CMD := sbatch submit1.sh
+CMD := python
 
-CLS := 256
 SIDS := 798
+CONFIGS := configs/bridge-static-ridgecv-config.yml #configs/bridge-static-config.yml configs/bridge-groupcv-wmltm-config.yml configs/bridge-wm-config.yml configs/bridge-ltm-cl0-rr-config.yml configs/bridge-ltm-cl1-config.yml configs/bridge-ltm-cl1-rr-config.yml configs/bridge-wmltm-config.yml configs/bridge-wmltm-nofs-config.yml
 run-encoding:
 	mkdir -p logs
 	for sid in $(SIDS); do \
-		for cl in $(CLS); do \
+		for config in $(CONFIGS); do \
 			$(CMD) scripts/tfsenc_main.py \
-				--config-file configs/config-tfs.yml configs/$$sid-config.yml configs/autocompress-manual-r.yml configs/layer16-config.yml configs/cl$$cl-config.yml configs/lags200k-config-r.yml configs/save-preds-config.yml configs/subset-ref-recap-config.yml; \
+				--config-file configs/config-tfs.yml configs/$$sid-config.yml configs/llama3-8b-retrieval-raw-fix-space-r.yml configs/lags2k-config-r.yml configs/subset-ref-recap-config.yml $$config; \
 		done; \
 	done;
 
@@ -40,7 +40,7 @@ run-encoding-sids:
 run-erp:
 	mkdir -p logs
 	$(CMD) scripts/tfserp_main.py \
-		--config-file configs/erp-config.yml configs/625-config.yml
+		--config-file configs/erp-config.yml configs/7170-config.yml configs/subset-ref-recap-config.yml;
 
 
 run-erp-sids:
