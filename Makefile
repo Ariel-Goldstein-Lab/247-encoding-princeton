@@ -14,8 +14,8 @@ link-data:
 
 # commands
 CMD := echo
-CMD := sbatch submit1.sh
 CMD := python
+CMD := sbatch submit1.sh
 
 SIDS := 798
 CONFIGS := configs/bridge-wm-ltm-config.py #configs/bridge-static-ridgecv-config.yml #configs/bridge-static-config.yml configs/bridge-groupcv-wmltm-config.yml configs/bridge-wm-config.yml configs/bridge-ltm-cl0-rr-config.yml configs/bridge-ltm-cl1-config.yml configs/bridge-ltm-cl1-rr-config.yml configs/bridge-wmltm-config.yml configs/bridge-wmltm-nofs-config.yml
@@ -24,7 +24,7 @@ run-encoding:
 	for sid in $(SIDS); do \
 		for config in $(CONFIGS); do \
 			$(CMD) scripts/tfsenc_main.py \
-				--config-file configs/config-tfs.yml configs/$$sid-config.yml configs/llama3-8b-retrieval-raw-fix-space-r.yml configs/lags2k-config-r.yml configs/subset-ref-recap-config.yml $$config; \
+				--config-file configs/config-tfs.yml configs/$$sid-config.yml configs/llama3-8b-baseline-fix-space-refrecur-r.yml configs/lags2k-config-r.yml configs/subset-ref-recap-config.yml $$config; \
 		done; \
 	done;
 
