@@ -312,7 +312,7 @@ def encoding_regression_permutation(args, X, Y, folds, num_perm=1000, min_roll=5
 
 
 def encoding_regression(args, X, Y, folds, extra_train_data=None, extra_test_data=None,
-                        n_alphas_batch=50, n_iter=20, debug=False):
+                        n_alphas_batch=50, n_iter=100, debug=False):
     """Run regression for VM
 
     Args:
