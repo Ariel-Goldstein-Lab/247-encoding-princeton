@@ -276,8 +276,8 @@ def encoding_regression_permutation(args, X, Y, folds, num_perm=1000, min_roll=5
     nSamps = X.shape[0]
     nChans = Y.shape[1] if Y.shape[1:] else 1
 
-    YHAT = np.zeros((nSamps, nChans * num_perm)).astype("float32")
-    Ynew = np.zeros((nSamps, nChans * num_perm)).astype("float32")
+    YHAT = np.zeros((nSamps, nChans * num_perm)).astype("float32") * np.nan
+    Ynew = np.zeros((nSamps, nChans * num_perm)).astype("float32") * np.nan
     YHAT_extra = None
     Ynew_extra = None
     corrs = []
@@ -357,6 +357,14 @@ def encoding_regression(args, X, Y, folds, extra_train_data=None, extra_test_dat
             Xtest_extra = extra_test_data[0]
             Ytest_extra = extra_test_data[1] - np.mean(Ytrain, axis=0)
 
+        # Skip rows where there are nan X vals. (Might have nan Xs if e.g., retrieval CL0 with no retrieved words.)
+        non_nan_rows_train = np.where(~np.isnan(Xtrain.sum(1)))
+        Xtrain = Xtrain[non_nan_rows_train]
+        Ytrain = Ytrain[non_nan_rows_train]
+        non_nan_rows_test = np.where(~np.isnan(Xtest.sum(1)))
+        Xtest = Xtest[non_nan_rows_test]
+        Ytest = Ytest[non_nan_rows_test]
+
         alphas = np.logspace(0, 20, 10)
         if getattr(args, "kernel_sizes", None) is not None:
             kernel_sizes_cumsum = np.cumsum(args.kernel_sizes)
@@ -423,8 +431,8 @@ def encoding_regression(args, X, Y, folds, extra_train_data=None, extra_test_dat
             Ytest = Ytest.cpu()
         if torch.is_tensor(foldYhat):
             foldYhat = foldYhat.cpu()
-        Ynew[folds == i, :] = Ytest.reshape(-1, nChans)
-        YHAT[folds == i, :] = foldYhat.reshape(-1, nChans)
+        Ynew[folds == i, :][non_nan_rows_test] = Ytest.reshape(-1, nChans)
+        YHAT[folds == i, :][non_nan_rows_test] = foldYhat.reshape(-1, nChans)
 
     return (YHAT, Ynew, corrs, corrs_split, YHAT_extra, Ynew_extra)
 
