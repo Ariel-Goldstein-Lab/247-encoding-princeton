@@ -87,7 +87,7 @@ def skip_elecs_done(summary_file, electrode_info, args):
 
     #elecs_done = summary.iloc[:, 1].tolist()
     #elecs_done = [elec for elec in elecs_done if elec not in ['SG1', 'SG2']]
-    if "perm" in args and args.perm:
+    if getattr(args, "permute", False):
         elecs_done = [os.path.split(fname)[-1].split("_prod")[0]
                     for fname in glob.glob(os.path.join(os.path.split(summary_file)[0], "*_prod_perm.csv"))]
     else:
