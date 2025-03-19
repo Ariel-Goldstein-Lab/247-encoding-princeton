@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --time=72:30:00
+#SBATCH --time=22:30:00
 #SBATCH --mem=300GB
 #SBATCH --nodes=1
 #SBATCH -o 'logs/%A.log'
@@ -25,7 +25,7 @@ else
 fi
 
 export TRANSFORMERS_OFFLINE=1
-
+git checkout bridge
 echo 'Requester:' $USER
 echo 'Node:' $HOSTNAME
 echo 'Start time:' `date`
