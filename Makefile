@@ -4,7 +4,7 @@
 
 PDIR := $(shell dirname `pwd`)
 link-data:
-	ln -fs $(PDIR)/247-pickling/results/* data/
+	ln -fs /scratch/gpfs/kw1166/247/247-pickling/results/* data/
 	ln -s /projects/HASSON/247/data/podcast-data/*.csv data/
 	# ln -fs /scratch/gpfs/${USER}/247-pickling/results/* data/
 
