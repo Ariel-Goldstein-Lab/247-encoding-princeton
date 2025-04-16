@@ -7,6 +7,7 @@ import torch
 import yaml
 from himalaya.backend import set_backend
 from utils import get_git_hash
+from utils import get_dir
 
 ELEC_SIGNAL_PREPROCESS_MAP = {
     "podcast": dict.fromkeys(
@@ -77,7 +78,7 @@ def parse_arguments():
     # get username
     user_id = getpass.getuser()
     all_yml_args["user_id"] = user_id
-    all_yml_args["git_hash"] = get_git_hash()
+    # all_yml_args["git_hash"] = get_git_hash()
 
     # clean up args
     args = argparse.Namespace(**all_yml_args)
@@ -109,7 +110,7 @@ def setup_environ(args):
     """
 
     # input directory paths (pickles)
-    DATA_DIR = os.path.join(os.path.dirname(os.getcwd()), "data")
+    DATA_DIR = get_dir("data")
     PICKLE_DIR = os.path.join(DATA_DIR, args.project_id, str(args.sid), "pickles")
     EMB_DIR = os.path.join(PICKLE_DIR, "embeddings", args.emb, "full")
     args.base_df_path = os.path.join(EMB_DIR, "base_df.pkl")
@@ -137,7 +138,7 @@ def setup_environ(args):
     ]
 
     # output directory paths
-    OUTPUT_DIR = os.path.join(os.path.dirname(os.getcwd()), "results", args.project_id)
+    OUTPUT_DIR = get_dir(os.path.join("results", args.project_id))
     RESULT_PARENT_DIR = f"{args.user_id[0:2]}-{args.project_id}-{args.sid}-{args.emb}-{args.output_dir_name}"
     RESULT_CHILD_DIR = f"{args.user_id[0:2]}-{args.window_size}ms-{args.sid}"
     args.output_dir = os.path.join(OUTPUT_DIR, RESULT_PARENT_DIR, RESULT_CHILD_DIR)

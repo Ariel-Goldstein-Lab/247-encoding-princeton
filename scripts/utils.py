@@ -1,3 +1,4 @@
+import os
 import pickle
 import subprocess
 from datetime import datetime
@@ -36,3 +37,16 @@ def load_pickle(file):
         datum = pickle.load(fh)
 
     return datum
+
+def get_dir(path_ending):
+    """Get the path a directory. Used to allow running through Makefile or through script directly (e.g. for debugging)"""
+    current_dir = os.getcwd()
+    # Check if we're in the main directory (with data/ as a direct subdirectory)
+    if os.path.isdir(os.path.join(current_dir, path_ending)):
+        return os.path.join(current_dir, path_ending)
+    # Check if we're in a script/ subdirectory (need to go one level up)
+    elif os.path.basename(current_dir) == "script" and os.path.isdir(os.path.join(os.path.dirname(current_dir), path_ending)):
+        return os.path.join(os.path.dirname(current_dir), path_ending)
+    # If neither condition is met, raise an error
+    else:
+        raise FileNotFoundError("Could not locate the data directory")
