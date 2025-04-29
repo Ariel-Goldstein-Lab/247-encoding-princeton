@@ -76,7 +76,7 @@ def single_electrode_erp(electrode, args, datum, stitch_index):
     prod_erp = prod_Y.mean(axis=0)
 
     elec_name = str(sid) + "_" + elec_name
-    print(f"{args.sid} {elec_name} Comp: {len(comp_Y)} Prod: {len(prod_Y)}")
+    print(f"{args.sid} {elec_name} ({elec_id}), Comp: {len(comp_Y)} Prod: {len(prod_Y)}")
 
     write_erp_results(args, comp_erp, f"{elec_name}_comp.csv")
     write_erp_results(args, prod_erp, f"{elec_name}_prod.csv")

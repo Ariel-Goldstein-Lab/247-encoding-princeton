@@ -5,8 +5,9 @@
 #SBATCH --gres=gpu:1
 ##SBATCH --constraint=gpu80
 ##SBATCH --cpus-per-task=4
-#SBATCH -o 'logs/%A.log'
-
+#SBATCH -o 'logs/%A_%x.log'
+#SBATCH --mail-user=timna.kleinman+DSBATCH@mail.huji.ac.il
+#SBATCH --mail-type=END,FAIL
 
 if [[ "$HOSTNAME" == *"tiger"* ]]
 then
@@ -17,7 +18,7 @@ elif [[ "$HOSTNAME" == *"della"* ]]
 then
     echo "It's Della"
     module load anaconda3/2021.11
-    source activate /home/kw1166/.conda/envs/247-main
+    conda activate encoding-tf
 else
     module load anacondapy
     source activate srm

@@ -71,7 +71,7 @@ def parse_arguments():
 
     all_yml_args = {}
     for config_file in args.config_file:
-        with open(config_file, "r") as file:
+        with open(f"{get_dir('configs')}/{config_file}", "r") as file:
             yml_args = yaml.safe_load(file)
             all_yml_args = all_yml_args | yml_args
 
@@ -90,7 +90,7 @@ def parse_arguments():
         print("List parameter failed to eval")
 
     if args.emb == "glove50":  # for glove, fix layer and context len
-        args.layer_idx = 1
+        args.layer_idx = 0 #1
         args.context_length = 1
     else:
         args.emb = clean_lm_model_name(args.emb)

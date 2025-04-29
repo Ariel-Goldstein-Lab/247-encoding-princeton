@@ -45,8 +45,8 @@ def get_dir(path_ending):
     if os.path.isdir(os.path.join(current_dir, path_ending)):
         return os.path.join(current_dir, path_ending)
     # Check if we're in a script/ subdirectory (need to go one level up)
-    elif os.path.basename(current_dir) == "script" and os.path.isdir(os.path.join(os.path.dirname(current_dir), path_ending)):
+    elif os.path.basename(current_dir) == "scripts" and os.path.isdir(os.path.join(os.path.dirname(current_dir), path_ending)):
         return os.path.join(os.path.dirname(current_dir), path_ending)
     # If neither condition is met, raise an error
     else:
-        raise FileNotFoundError("Could not locate the data directory")
+        raise FileNotFoundError(f"Could not locate the data directory ({path_ending})")

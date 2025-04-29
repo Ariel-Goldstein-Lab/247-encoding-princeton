@@ -77,13 +77,13 @@ def get_kfolds(X, fold_num=10):
 def encoding_setup(args, elec_name, elec_datum, elec_signal):
 
     # Build x and y matrices
-    X = np.stack(elec_datum.embeddings).astype("float64")
+    X = np.stack(elec_datum.embeddings).astype("float64") # embeddings
     Y = build_Y(
         elec_signal.reshape(-1, 1),
         elec_datum.adjusted_onset.values,
         np.array(args.lags),
         args.window_size,
-    )
+    ) # Signal (cut by word onset)
     X = X.astype("float32")
     Y = Y.astype("float32")
 
@@ -163,23 +163,27 @@ def encoding_regression(args, X, Y, folds):
 
         if not args.ridge:  # ols
             if args.pca_to == 0:
-                print(f"Running OLS, emb_dim = {Xtrain.shape[1]}")
+                if i == 0:
+                    print(f"Running OLS, emb_dim = {Xtrain.shape[1]}", flush=True)
                 if args.himalaya:
                     model = make_pipeline(StandardScaler(), RidgeCV(alphas=[1e-9]))
                 else:
                     model = make_pipeline(StandardScaler(), LinearRegression())
             else:  # pca + ols
-                print(f"Running PCA (from {Xtest.shape[1]} to {args.pca_to}) + OLS")
+                if i == 0:
+                    print(f"Running PCA (from {Xtest.shape[1]} to {args.pca_to}) + OLS", flush=True)
                 model = make_pipeline(
                     StandardScaler(), PCA(args.pca_to, whiten=True), LinearRegression()
                 )
         else:  # ridge cv
             alphas = np.logspace(0, 20, 10)
             if Xtrain.shape[0] < Xtrain.shape[1]:
-                print(f"Running KernelRidgeCV, emb_dim = {Xtrain.shape[1]}")
+                if i == 0:
+                    print(f"Running KernelRidgeCV, emb_dim = {Xtrain.shape[1]}", flush=True)
                 model = make_pipeline(StandardScaler(), KernelRidgeCV(alphas=alphas))
             else:
-                print(f"Running RidgeCV, emb_dim = {Xtrain.shape[1]}")
+                if i == 0:
+                    print(f"Running RidgeCV, emb_dim = {Xtrain.shape[1]}", flush=True)
                 model = make_pipeline(StandardScaler(), RidgeCV(alphas=alphas))
         torch.cuda.empty_cache()
         model.fit(Xtrain, Ytrain)

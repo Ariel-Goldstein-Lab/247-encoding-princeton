@@ -8,7 +8,7 @@ cv_fold_num: 10
 emb_norm: l2
 remove_punctuation: True
 exclude_nonwords: True
-trim_conv_edges: True # trim lags out side of convo on/offsets
+trim_conv_edges: True # trim lags outside of convo on/offsets
 detrend_signal: True # detrend signal with polynomial
 fold_correlation: True # save correlation per fold
 comp: True # Run encoding for words in comprehension
