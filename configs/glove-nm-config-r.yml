@@ -1,0 +1,15 @@
+
+# Embeddings
+emb: glove50-nm
+context_length: 1
+layer_idx: 0
+
+# Embedding modification
+emb_mod: none
+# pca_to not used for ridge
+pca_to: 50
+regularization: ridge # ridge, lasso or none
+
+# Lags
+lags: np.arange(-2000,2001,25)
+output_dir_name: lag2k-25-all
