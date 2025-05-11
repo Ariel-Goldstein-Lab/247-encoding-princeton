@@ -1,8 +1,8 @@
 
 # Embeddings
-emb: gpt2
+emb: gpt2-xl
 context_length: 1024
-layer_idx: 12
+layer_idx: 48 #/48
 
 # Embedding modifications: none, rand, emb, shift-emb, concat-emb
 emb_mod: none # shift-emb, concat-emb, rand, arb
@@ -12,4 +12,4 @@ regularization: none # ridge, lasso or none
 
 # Lags
 lags: np.arange(-2000,2001,25)
-output_dir_name: pca50-ols-lag2k-25-all
+output_dir_name: lag2k-25-all

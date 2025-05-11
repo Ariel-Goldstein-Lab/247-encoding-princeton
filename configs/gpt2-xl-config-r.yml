@@ -1,13 +1,13 @@
 
 # Embeddings
-emb: glove50
-context_length: 1
-layer_idx: 0
+emb: gpt2-xl
+context_length: 1024
+layer_idx: 24 #/48
 
-# Embedding modification
+# Embedding modifications: none, rand, emb, shift-emb, concat-emb
 emb_mod: none
 # pca_to not used for ridge
-pca_to: 50
+pca_to: 0
 regularization: ridge # ridge, lasso or none
 
 # Lags

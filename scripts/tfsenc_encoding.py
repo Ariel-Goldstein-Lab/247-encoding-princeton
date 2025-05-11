@@ -6,7 +6,7 @@ import pandas as pd
 import torch
 from himalaya.kernel_ridge import (ColumnKernelizer, Kernelizer, KernelRidgeCV,
                                    MultipleKernelRidgeCV)
-from himalaya.ridge import ColumnTransformerNoStack, GroupRidgeCV, RidgeCV
+from himalaya.ridge import ColumnTransformerNoStack, GroupRidgeCV, RidgeCV, LassoCV
 from himalaya.scoring import correlation_score, correlation_score_split
 from numba import jit, prange
 from scipy import stats
@@ -64,7 +64,7 @@ def get_groupkfolds(datum, X, Y, fold_num=10):
 
 
 def get_kfolds(X, fold_num=10):
-    print("Using kfolds")
+    print("Using kfolds", flush=True)
     skf = KFold(n_splits=fold_num, shuffle=False)
     folds = [t[1] for t in skf.split(np.arange(X.shape[0]))]
     fold_cat = np.zeros(X.shape[0])
@@ -99,7 +99,7 @@ def encoding_setup(args, elec_name, elec_datum, elec_signal):
         fold_cat_prod = []
     elif len(args.conv_ids) < args.cv_fold_num:  # small num of convos (< 10)
         print(
-            f"{args.sid} {elec_name} has less convos than fold nums, doing kfold instead"
+            f"{args.sid} {elec_name} has less convos than fold nums, doing kfold instead", flush=True
         )
         fold_cat_comp = get_kfolds(comp_X, args.cv_fold_num)
         fold_cat_prod = get_kfolds(prod_X, args.cv_fold_num)
@@ -147,12 +147,14 @@ def encoding_correlation(CA, CB):
 
 def encoding_regression(args, X, Y, folds):
 
-    nSamps = X.shape[0]
-    nChans = Y.shape[1] if Y.shape[1:] else 1
+    nSamps = X.shape[0] # Num of words
+    nChans = Y.shape[1] if Y.shape[1:] else 1 # Num of lags
+    linear_dim = args.pca_to if args.pca_to else X.shape[1]
 
     YHAT = np.zeros((nSamps, nChans)).astype("float32")
     Ynew = np.zeros((nSamps, nChans)).astype("float32")
     corrs = []
+    coeffs = np.zeros((args.cv_fold_num, linear_dim, nChans))
 
     for i in range(0, args.cv_fold_num):
 
@@ -161,8 +163,24 @@ def encoding_regression(args, X, Y, folds):
         Ytest -= np.mean(Ytrain, axis=0)
         Ytrain -= np.mean(Ytrain, axis=0)
 
-        if not args.ridge:  # ols
-            if args.pca_to == 0:
+        if args.regularization == "ridge":
+            alphas = np.logspace(0, 20, 10)
+            if Xtrain.shape[0] < Xtrain.shape[1]:
+                if i == 0:
+                    print(f"Running KernelRidgeCV, emb_dim = {Xtrain.shape[1]}", flush=True)
+                model = make_pipeline(StandardScaler(), KernelRidgeCV(alphas=alphas))
+            else:
+                if i == 0:
+                    print(f"Running RidgeCV, emb_dim = {Xtrain.shape[1]}", flush=True)
+                model = make_pipeline(StandardScaler(), RidgeCV(alphas=alphas))
+
+        elif args.regularization == "lasso":
+            if i == 0:
+                print(f"Running LassoCV, emb_dim = {Xtrain.shape[1]}", flush=True)
+            model = make_pipeline(StandardScaler(), LassoCV()) #TODO: choose relevant alphas
+
+        else:  # ols, no regularization
+            if args.pca_to == 0: # No pca
                 if i == 0:
                     print(f"Running OLS, emb_dim = {Xtrain.shape[1]}", flush=True)
                 if args.himalaya:
@@ -175,16 +193,7 @@ def encoding_regression(args, X, Y, folds):
                 model = make_pipeline(
                     StandardScaler(), PCA(args.pca_to, whiten=True), LinearRegression()
                 )
-        else:  # ridge cv
-            alphas = np.logspace(0, 20, 10)
-            if Xtrain.shape[0] < Xtrain.shape[1]:
-                if i == 0:
-                    print(f"Running KernelRidgeCV, emb_dim = {Xtrain.shape[1]}", flush=True)
-                model = make_pipeline(StandardScaler(), KernelRidgeCV(alphas=alphas))
-            else:
-                if i == 0:
-                    print(f"Running RidgeCV, emb_dim = {Xtrain.shape[1]}", flush=True)
-                model = make_pipeline(StandardScaler(), RidgeCV(alphas=alphas))
+
         torch.cuda.empty_cache()
         model.fit(Xtrain, Ytrain)
 
@@ -193,26 +202,36 @@ def encoding_regression(args, X, Y, folds):
         fold_cors = correlation_score(Ytest, foldYhat)
         corrs.append(fold_cors)
 
+        # Coeff & bias
+        linear_regression_model = model.steps[-1][1]
+        coefficients = linear_regression_model.coef_
+
+        if args.regularization == "ridge" or args.regularization == "lasso" or args.pca_to==0:
+            coeffs[i, :, :] = coefficients
+        else:
+            coeffs[i, :, :] = coefficients.T
+
         Ynew[folds == i, :] = Ytest.reshape(-1, nChans)
         YHAT[folds == i, :] = foldYhat.reshape(-1, nChans)
 
-    return (YHAT, Ynew, corrs)
+    return (YHAT, Ynew, corrs, coeffs)
 
 
 def run_encoding(args, X, Y, folds):
 
     # train lm and predict
-    Y_hat, Y_new, corrs = encoding_regression(args, X, Y, folds)
+    Y_hat, Y_new, corrs, coeffs = encoding_regression(args, X, Y, folds)
 
-    # New correlation
-    corr_datum = correlation_score(Y_new, Y_hat)
-    corrs.append(corr_datum)
-    if torch.is_tensor(corr_datum):  # torch tensor
+    # Correlation over all folds
+    # corr_datum = correlation_score(Y_new, Y_hat)
+    # corrs.append(corr_datum)
+
+    if torch.is_tensor(corrs[-1]):  # torch tensor
         corrs = torch.stack(corrs)
     else:
         corrs = np.stack(corrs)
 
-    return corrs
+    return corrs, coeffs
 
 
 def write_encoding_results(args, results, filename):
@@ -220,16 +239,28 @@ def write_encoding_results(args, results, filename):
 
     Args:
         args (namespace): commandline arguments
-        results: correlation results
-        filename: usually electrode name plus 'prod' or 'comp'
+        results: (correlation results, linear coefficients, intercept)
+        filename: usually electrode name plus 'prod' or 'comp'. No need to add filetype ending.
 
     Returns:
         None
     """
+    corrs, coeffs = results
     filename = os.path.join(args.output_dir, filename)
-    if torch.is_tensor(results):
-        results = results.cpu().numpy()
-    results_df = pd.DataFrame(results)
-    results_df.to_csv(filename, index=False, header=False)
+
+    # Save correlations
+    corr_filename = filename+".csv"
+    if torch.is_tensor(corrs):
+        corrs = corrs.cpu().numpy()
+    corrs_df = pd.DataFrame(corrs)
+    corrs_df.to_csv(corr_filename, index=False, header=False)
+
+    # Save coefficients
+    coefs_filename = filename+"_coefs"
+    np.save(coefs_filename,coeffs)
+
+    # Save intercepts
+    # intercepts_filename = filename+"_intercepts.pkl"
+    # np.save(intercepts_filename, intercepts)
 
     return

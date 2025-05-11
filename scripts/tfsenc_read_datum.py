@@ -300,7 +300,7 @@ def process_embeddings(args, df):
     """
 
     # drop NaN / None embeddings
-    if args.emb == "glove50":
+    if args.emb == "glove50" or args.emb == "glove50-nm":
         df = df.dropna(subset=["embeddings"])
     else:
         df = drop_nan_embeddings(df)
@@ -314,7 +314,7 @@ def process_embeddings(args, df):
 
     # Average embeddings across tokens per word
     if "glove" not in args.emb:
-        if df[f"{args.emb}_token_is_root"].sum() < len(df):
+        if df[f"{args.emb}_token_is_root"].sum() < len(df): #TODO: comment if using nm embeddings
             df = ave_emb(df)  # average embs per word
 
     # Embedding manipulation (word level)
@@ -404,12 +404,13 @@ def read_datum(args, stitch):
     Returns:
         df (df): processed and filtered datum
     """
+    print("reading datum", flush=True)
     emb_df = load_datum(args.emb_df_path)
     base_df = load_datum(args.base_df_path)
     df = pd.merge(base_df, emb_df, left_index=True, right_index=True)
-    print(f"After loading: Datum loads with {len(df)} words")
+    print(f"After loading: Datum loads with {len(df)} words", flush=True)
 
     df = process_datum(args, df, stitch)
-    print(f"Datum final length: {len(df)}")
+    print(f"Datum final length: {len(df)}", flush=True)
 
     return df

@@ -8,7 +8,7 @@ layer_idx: 0
 emb_mod: none
 
 pca_to: 50
-ridge: False
+regularization: none # ridge, lasso or none
 
 # Lags
 lags: np.arange(-2000,2001,25)

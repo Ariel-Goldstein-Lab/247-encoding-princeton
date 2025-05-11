@@ -92,6 +92,9 @@ def parse_arguments():
     if args.emb == "glove50":  # for glove, fix layer and context len
         args.layer_idx = 0 #1
         args.context_length = 1
+    elif args.emb == "glove50-nm":  # Not my glove, fix layer and context len
+        args.layer_idx = 1
+        args.context_length = 1
     else:
         args.emb = clean_lm_model_name(args.emb)
 
@@ -140,7 +143,14 @@ def setup_environ(args):
     # output directory paths
     OUTPUT_DIR = get_dir(os.path.join("results", args.project_id))
     RESULT_PARENT_DIR = f"{args.user_id[0:2]}-{args.project_id}-{args.sid}-{args.emb}-{args.output_dir_name}"
-    RESULT_CHILD_DIR = f"{args.user_id[0:2]}-{args.window_size}ms-{args.sid}"
+    res_dir_base = f"{args.user_id[0:2]}-{args.window_size}ms-{args.sid}-lay{args.layer_idx}-con{args.context_length}"
+    if args.regularization in {"ridge", "lasso"}:
+        res_dir_base += f"-reg{args.regularization}"
+    elif args.pca_to:
+        res_dir_base += f"-pca{args.pca_to}"
+    if args.emb_norm:
+        res_dir_base += f"-norm{args.emb_norm}"
+    RESULT_CHILD_DIR = res_dir_base
     args.output_dir = os.path.join(OUTPUT_DIR, RESULT_PARENT_DIR, RESULT_CHILD_DIR)
     os.makedirs(args.output_dir, exist_ok=True)
 

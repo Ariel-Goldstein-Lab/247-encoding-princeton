@@ -1,7 +1,7 @@
 
 # Embeddings
-emb: gpt2
-context_length: 1024
+emb: gpt2-nm
+context_length: 70
 layer_idx: 12
 
 # Embedding modifications: none, rand, emb, shift-emb, concat-emb

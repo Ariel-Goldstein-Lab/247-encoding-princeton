@@ -1,14 +1,14 @@
 
 # Embeddings
-emb: gpt2
+emb: gpt2-xl
 context_length: 1024
-layer_idx: 12
+layer_idx: 24 #/48
 
 # Embedding modifications: none, rand, emb, shift-emb, concat-emb
 emb_mod: none
 # pca_to not used for ridge
 pca_to: 0
-regularization: ridge # ridge, lasso or none
+regularization: lasso # ridge, lasso or none
 
 # Lags
 lags: np.arange(-2000,2001,25)

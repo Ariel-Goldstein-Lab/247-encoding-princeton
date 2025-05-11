@@ -111,7 +111,7 @@ def single_electrode_encoding(electrode, args, datum, stitch_index):
     (sid, elec_id), elec_name = electrode
 
     if elec_name is None:
-        print(f"Electrode ID {elec_id} does not exist")
+        print(f"Electrode ID {elec_id} does not exist", flush=True)
         return (args.sid, None, 0, 0)
 
     # Load signal Data
@@ -124,27 +124,27 @@ def single_electrode_encoding(electrode, args, datum, stitch_index):
         elec_datum = datum
 
     if len(elec_datum) == 0:  # datum has no words, meaning no signal
-        print(f"{args.sid} {elec_name} No Signal")
+        print(f"{args.sid} {elec_name} No Signal", flush=True)
         return (args.sid, elec_name, 0, 0)
 
     # Set up encoding (prod/comp x, y, and folds)
     comp_data, prod_data = encoding_setup(args, elec_name, elec_datum, elec_signal)
     elec_name = str(sid) + "_" + elec_name
-    print(f"{args.sid} {elec_name} Comp: {len(comp_data[0])} Prod: {len(prod_data[0])}")
+    print(f"{args.sid} {elec_name} Comp: {len(comp_data[0])} Prod: {len(prod_data[0])}", flush=True)
 
     # Run encoding and save results
     if args.comp and len(comp_data[0]) > 0:  # Comprehension
         if len(np.unique(comp_data[2])) < args.cv_fold_num:
-            print(f"{args.sid} {elec_name} failed comp groupkfold")
+            print(f"{args.sid} {elec_name} failed comp groupkfold", flush=True)
         else:
             result = run_encoding(args, *comp_data)
-            write_encoding_results(args, result, f"{elec_name}_comp.csv")
+            write_encoding_results(args, result, f"{elec_name}_comp")
     if args.prod and len(prod_data[0]) > 0:  # Production
         if len(np.unique(prod_data[2])) < args.cv_fold_num:
-            print(f"{args.sid} {elec_name} failed prod groupkfold")
+            print(f"{args.sid} {elec_name} failed prod groupkfold", flush=True)
         else:
             result = run_encoding(args, *prod_data)
-            write_encoding_results(args, result, f"{elec_name}_prod.csv")
+            write_encoding_results(args, result, f"{elec_name}_prod")
 
     return (sid, elec_name, len(prod_data[0]), len(comp_data[0]))
 
@@ -161,7 +161,7 @@ def electrodes_encoding(args, electrode_info, datum, stitch_index, parallel=Fals
 
     summary_file = os.path.join(args.output_dir, "summary.csv")  # summary file
     if os.path.exists(summary_file):  # previous job
-        print("Previously ran the same job, checking for elecs done")
+        print("Previously ran the same job, checking for elecs done", flush=True)
         electrode_info = skip_elecs_done(summary_file, electrode_info)
 
     if parallel:
@@ -169,6 +169,7 @@ def electrodes_encoding(args, electrode_info, datum, stitch_index, parallel=Fals
     else:
         for electrode in electrode_info.items():
             result = single_electrode_encoding(electrode, args, datum, stitch_index)
+            print(f"done with {electrode[1]}", flush=True)
             with open(summary_file, "a") as f:
                 writer = csv.writer(f, delimiter=",", lineterminator="\r\n")
                 writer.writerow(result)

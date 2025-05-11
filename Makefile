@@ -15,14 +15,16 @@ link-data:
 
 # commands
 SID := 625
-EMB := gpt2-xl#glove-nm#gemma2-2b
-RIDGE := FALSE#TRUE
-CMD := sbatch --job-name=$(SID)-$(EMB)-r_$(RIDGE) submit.sh# python
-# {echo | python | sbatch --job-name=$(SID)-$(EMB)-r_$(RIDGE) submit.sh}
+EMB := gpt2-xl#gemma-2-2b#gpt2-xl#glove-nm
+REGULARIZATION := none
+CMD := python#sbatch --job-name=enc_$(SID)-$(EMB)-r_$(REGULARIZATION) submit.sh
+# {echo | python | sbatch --job-name=$(SID)-$(EMB)-r_$(REGULARIZATION) submit.sh}
 
 # Define the config path based on RIDGE value
-ifeq ($(RIDGE),TRUE)
+ifeq ($(REGULARIZATION),ridge)
     EMB_CONFIG_PATH := $(EMB)-config-r.yml
+else ifeq ($(REGULARIZATION),lasso)
+    EMB_CONFIG_PATH := $(EMB)-config-l.yml
 else
     EMB_CONFIG_PATH := $(EMB)-config.yml
 endif
