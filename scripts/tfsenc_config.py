@@ -98,6 +98,9 @@ def parse_arguments():
     else:
         args.emb = clean_lm_model_name(args.emb)
 
+    if hasattr(args, "l0"):
+        args.l0 = int(args.l0)
+
     return args, all_yml_args
 
 
@@ -117,11 +120,16 @@ def setup_environ(args):
     PICKLE_DIR = os.path.join(DATA_DIR, args.project_id, str(args.sid), "pickles")
     EMB_DIR = os.path.join(PICKLE_DIR, "embeddings", args.emb, "full")
     args.base_df_path = os.path.join(EMB_DIR, "base_df.pkl")
+    EMB_DF_DIR = os.path.join(EMB_DIR, f"cnxt_{args.context_length:04d}")
+    if hasattr(args, "width"):
+        EMB_DF_DIR = os.path.join(EMB_DF_DIR, f"width_{args.width}")
+    if hasattr(args, "l0"):
+        EMB_DF_DIR = os.path.join(EMB_DF_DIR, f"l0_{args.l0:03d}")
+
     args.emb_df_path = os.path.join(
-        EMB_DIR,
-        f"cnxt_{args.context_length:04d}",
+        EMB_DF_DIR,
         f"layer_{args.layer_idx:02d}.pkl",
-    )
+)
     args.electrode_file_path = os.path.join(
         PICKLE_DIR, ("_".join([str(args.sid), "electrode_names.pkl"]))
     )

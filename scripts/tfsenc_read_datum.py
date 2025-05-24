@@ -226,7 +226,7 @@ def ave_emb(datum):
     # replace embeddings
     idx = (
         datum.groupby(["adjusted_onset", "word"], sort=False)["token_idx"].transform(
-            min
+            "min"
         )
         == datum["token_idx"]
     )

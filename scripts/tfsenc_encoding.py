@@ -6,7 +6,8 @@ import pandas as pd
 import torch
 from himalaya.kernel_ridge import (ColumnKernelizer, Kernelizer, KernelRidgeCV,
                                    MultipleKernelRidgeCV)
-from himalaya.ridge import ColumnTransformerNoStack, GroupRidgeCV, RidgeCV, LassoCV
+from himalaya.ridge import ColumnTransformerNoStack, GroupRidgeCV, RidgeCV
+from himalaya.lasso import SparseGroupLassoCV
 from himalaya.scoring import correlation_score, correlation_score_split
 from numba import jit, prange
 from scipy import stats
@@ -37,7 +38,7 @@ def build_Y(brain_signal, onsets, lags, window_size):
 
     for lag in prange(len(lags)):
         lag_amount = int(lags[lag] / MS * FS)  # convert fo signal fs
-        index_onsets = np.round_(onsets, 0, onsets) + lag_amount  # lag onsets
+        index_onsets = np.round(onsets, 0, onsets) + lag_amount  # lag onsets
         starts = index_onsets - half_window - 1  # lag window onset
         stops = index_onsets + half_window  # lag window offset
         for i, (start, stop) in enumerate(zip(starts, stops)):
@@ -147,14 +148,20 @@ def encoding_correlation(CA, CB):
 
 def encoding_regression(args, X, Y, folds):
 
-    nSamps = X.shape[0] # Num of words
-    nChans = Y.shape[1] if Y.shape[1:] else 1 # Num of lags
-    linear_dim = args.pca_to if args.pca_to else X.shape[1]
+    amount_alphas_to_check = 30
 
-    YHAT = np.zeros((nSamps, nChans)).astype("float32")
-    Ynew = np.zeros((nSamps, nChans)).astype("float32")
+    nwords = X.shape[0] # Num of words
+    nlags = Y.shape[1] if Y.shape[1:] else 1 # Num of lags
+    linear_dim = args.pca_to if args.regularization == "none" else X.shape[1]
+
+    YHAT = np.zeros((nwords, nlags)).astype("float32")
+    Ynew = np.zeros((nwords, nlags)).astype("float32")
     corrs = []
-    coeffs = np.zeros((args.cv_fold_num, linear_dim, nChans))
+    coeffs = np.zeros((args.cv_fold_num, linear_dim, nlags))
+    best_l1_regs = np.zeros((args.cv_fold_num, nlags))  # best l1 reg (lasso) or alpha (ridge)
+    cv_scores = np.zeros((args.cv_fold_num, amount_alphas_to_check, nlags))  # cross-validation scores
+
+    # intercepts = np.zeros((args.cv_fold_num, nlags)) # intercept (linear reg) or alpha (ridge)
 
     for i in range(0, args.cv_fold_num):
 
@@ -164,7 +171,7 @@ def encoding_regression(args, X, Y, folds):
         Ytrain -= np.mean(Ytrain, axis=0)
 
         if args.regularization == "ridge":
-            alphas = np.logspace(0, 20, 10)
+            alphas = np.logspace(0, 20, amount_alphas_to_check)
             if Xtrain.shape[0] < Xtrain.shape[1]:
                 if i == 0:
                     print(f"Running KernelRidgeCV, emb_dim = {Xtrain.shape[1]}", flush=True)
@@ -175,9 +182,11 @@ def encoding_regression(args, X, Y, folds):
                 model = make_pipeline(StandardScaler(), RidgeCV(alphas=alphas))
 
         elif args.regularization == "lasso":
+            alphas = np.logspace(-1, 20, amount_alphas_to_check)
             if i == 0:
                 print(f"Running LassoCV, emb_dim = {Xtrain.shape[1]}", flush=True)
-            model = make_pipeline(StandardScaler(), LassoCV()) #TODO: choose relevant alphas
+            # TODO: maybe try also sklearn.linear_model.MultiTaskLassoCV or MultiTaskElasticNetCV as well
+            model = make_pipeline(StandardScaler(), SparseGroupLassoCV(l1_regs=alphas, l21_regs=[0], groups=None, solver_params=dict(max_iter=1000),))
 
         else:  # ols, no regularization
             if args.pca_to == 0: # No pca
@@ -203,24 +212,26 @@ def encoding_regression(args, X, Y, folds):
         corrs.append(fold_cors)
 
         # Coeff & bias
-        linear_regression_model = model.steps[-1][1]
-        coefficients = linear_regression_model.coef_
+        linmodel = model[-1]
 
-        if args.regularization == "ridge" or args.regularization == "lasso" or args.pca_to==0:
-            coeffs[i, :, :] = coefficients
-        else:
-            coeffs[i, :, :] = coefficients.T
+        coeffs[i, :, :] = linmodel.coef_.reshape(-1, nlags)  # NMTODO himalaya (n_features, n_targets)  e.g 50 x n
+        best_l1_regs[i,:] = linmodel.best_l1_reg_.cpu().numpy()
+        cv_scores[i, :, :] = linmodel.cv_scores_.cpu().numpy()
 
-        Ynew[folds == i, :] = Ytest.reshape(-1, nChans)
-        YHAT[folds == i, :] = foldYhat.reshape(-1, nChans)
+        Ynew[folds == i, :] = Ytest.reshape(-1, nlags)
+        YHAT[folds == i, :] = foldYhat.cpu().reshape(-1, nlags)
 
-    return (YHAT, Ynew, corrs, coeffs)
+    model_fittind_params = {"coeffs": coeffs,
+                            "best_l1_regs": best_l1_regs,
+                            # "cv_scores": cv_scores,
+                            }
+    return (YHAT, Ynew, corrs, model_fittind_params)
 
 
 def run_encoding(args, X, Y, folds):
 
     # train lm and predict
-    Y_hat, Y_new, corrs, coeffs = encoding_regression(args, X, Y, folds)
+    Y_hat, Y_new, corrs, model_fittind_params = encoding_regression(args, X, Y, folds)
 
     # Correlation over all folds
     # corr_datum = correlation_score(Y_new, Y_hat)
@@ -231,7 +242,7 @@ def run_encoding(args, X, Y, folds):
     else:
         corrs = np.stack(corrs)
 
-    return corrs, coeffs
+    return corrs, model_fittind_params
 
 
 def write_encoding_results(args, results, filename):
@@ -245,7 +256,7 @@ def write_encoding_results(args, results, filename):
     Returns:
         None
     """
-    corrs, coeffs = results
+    corrs, model_fittind_params = results
     filename = os.path.join(args.output_dir, filename)
 
     # Save correlations
@@ -256,8 +267,11 @@ def write_encoding_results(args, results, filename):
     corrs_df.to_csv(corr_filename, index=False, header=False)
 
     # Save coefficients
-    coefs_filename = filename+"_coefs"
-    np.save(coefs_filename,coeffs)
+    for param in model_fittind_params.keys():
+        param_filename = filename+"_"+param
+        if torch.is_tensor(model_fittind_params[param]):
+            model_fittind_params[param] = model_fittind_params[param].cpu().numpy()
+        np.save(param_filename,model_fittind_params[param])
 
     # Save intercepts
     # intercepts_filename = filename+"_intercepts.pkl"

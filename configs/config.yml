@@ -5,7 +5,7 @@ project_id: tfs
 window_size: 200 # window size (ms) to average for signal
 minimum_word_frequency: 0
 cv_fold_num: 10
-emb_norm: l2
+emb_norm: False # l2
 remove_punctuation: True
 exclude_nonwords: True
 trim_conv_edges: True # trim lags outside of convo on/offsets

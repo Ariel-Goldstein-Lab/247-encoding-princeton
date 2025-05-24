@@ -85,7 +85,7 @@ def skip_elecs_done(summary_file, electrode_info):
 
     elecs_done = summary.iloc[:, 1].tolist()
     for elec in elecs_done:  # skipping electrodes
-        print(f"Skipping elec {elec}")
+        print(f"Skipping elec {elec}", flush=True)
         electrode_info = {
             key: val for key, val in electrode_info.items() if f"{key[0]}_{val}" != elec
         }
@@ -168,6 +168,7 @@ def electrodes_encoding(args, electrode_info, datum, stitch_index, parallel=Fals
         pass  # TODO
     else:
         for electrode in electrode_info.items():
+            # if electrode[1].startswith("EEGSO"):
             result = single_electrode_encoding(electrode, args, datum, stitch_index)
             print(f"done with {electrode[1]}", flush=True)
             with open(summary_file, "a") as f:
