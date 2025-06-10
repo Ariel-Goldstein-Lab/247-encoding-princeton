@@ -65,7 +65,7 @@ def get_groupkfolds(datum, X, Y, fold_num=10):
 
 
 def get_kfolds(X, fold_num=10):
-    print("Using kfolds", flush=True)
+    # print("Using kfolds", flush=True)
     skf = KFold(n_splits=fold_num, shuffle=False)
     folds = [t[1] for t in skf.split(np.arange(X.shape[0]))]
     fold_cat = np.zeros(X.shape[0])
@@ -79,9 +79,11 @@ def encoding_setup(args, elec_name, elec_datum, elec_signal):
 
     # Build x and y matrices
     X = np.stack(elec_datum.embeddings).astype("float64") # embeddings
+    # if onsets.dtype == 'object':
+    onsets = elec_datum.adjusted_onset.values.astype(np.float64)
     Y = build_Y(
         elec_signal.reshape(-1, 1),
-        elec_datum.adjusted_onset.values,
+        onsets,
         np.array(args.lags),
         args.window_size,
     ) # Signal (cut by word onset)
@@ -226,6 +228,21 @@ def encoding_regression(args, X, Y, folds):
                             # "cv_scores": cv_scores,
                             }
     return (YHAT, Ynew, corrs, model_fittind_params)
+
+def run_encoding_sig_coeffs(args, X, Y, folds):
+    # train lm and predict
+    Y_hat, Y_new, corrs, model_fittind_params = encoding_regression_sig_coeffs(args, X, Y, folds)
+
+    # Correlation over all folds
+    # corr_datum = correlation_score(Y_new, Y_hat)
+    # corrs.append(corr_datum)
+
+    if torch.is_tensor(corrs[-1]):  # torch tensor
+        corrs = torch.stack(corrs)
+    else:
+        corrs = np.stack(corrs)
+
+    return corrs, model_fittind_params
 
 
 def run_encoding(args, X, Y, folds):

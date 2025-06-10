@@ -1,6 +1,7 @@
 
 # Subject
 sid: 798
-conv_ids: np.arange(1, 16)
+project_id: tfs # podcast
+conv_ids: np.arange(1, 16) #or np.arange(1, 2) for podcast
 elecs: np.arange(1, 199)
 sig_elec_file:

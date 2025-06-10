@@ -8,10 +8,8 @@ width: 16k
 emb_mod: none # shift-emb, concat-emb, rand, arb
 
 pca_to: 50
-regularization: lasso # ridge, lasso or none
+regularization: ridge # ridge, lasso or none
 
 # Lags
 lags: np.arange(-2000,2001,25)
 output_dir_name: lag2k-25-all
-
-get_sae_sig_coeffs: True # Get SAE signal significant coefficients, runs lasso and then OLS

@@ -56,15 +56,11 @@ def process_electrodes(args):
         electrode_info = {
             (args.sid, key): next(
                 iter(
-                    df.loc[
-                        (df.subject == str(args.sid)) & (df.electrode_id == key),
-                        "electrode_name",
-                    ]
-                ),
+                    df.loc[(df.subject == str(args.sid)) & (df.electrode_id == key), "electrode_name",]),
                 None,
             )
             for key in args.elecs
-        }
+        } # dict where key is (sid, elec_id) and value is elec_name
 
     return electrode_info
 
@@ -197,7 +193,6 @@ def main():
     # Processing significant electrodes or individual subjects
     electrode_info = process_electrodes(args)
     electrodes_encoding(args, electrode_info, datum, stitch_index)
-
     return
 
 

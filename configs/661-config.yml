@@ -1,0 +1,7 @@
+
+# Subject
+sid: 661
+project_id: podcast
+conv_ids: np.arange(1, 2)
+elecs: np.arange(1, 127) #112?
+sig_elec_file:

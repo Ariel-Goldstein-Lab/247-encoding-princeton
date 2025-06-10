@@ -1,6 +1,7 @@
 
 # Subject
 sid: 625
+project_id: tfs
 conv_ids: np.arange(1, 55)
-elecs: np.arange(1, 106)
+elecs: np.arange(1, 127) #Originaly 106
 sig_elec_file:

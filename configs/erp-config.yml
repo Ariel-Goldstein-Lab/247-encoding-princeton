@@ -1,7 +1,6 @@
 ##############################
 ####### Set Parameters #######
 ##############################
-project_id: tfs
 window_size: 200 # window size (ms) to average for signal
 minimum_word_frequency: 0
 cv_fold_num: 10

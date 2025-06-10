@@ -1,8 +1,5 @@
 #!/bin/bash
-#SBATCH --time=1:30:00
-#SBATCH --mem=80GB
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:1
 ##SBATCH --constraint=gpu80
 ##SBATCH --cpus-per-task=4
 #SBATCH -o 'logs/%A_%x.log'
@@ -18,7 +15,7 @@ elif [[ "$HOSTNAME" == *"della"* ]]
 then
     echo "It's Della"
     module load anaconda3/2021.11
-    conda activate encoding-tf
+    conda activate encoding
 else
     module load anacondapy
     source activate srm
