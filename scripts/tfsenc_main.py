@@ -7,8 +7,8 @@ from multiprocessing import Pool, cpu_count
 import numpy as np
 import pandas as pd
 from tfsenc_config import parse_arguments, setup_environ, write_config
-from tfsenc_encoding import (encoding_setup, run_encoding,
-                             write_encoding_results)
+from tfsenc_encoding import (encoding_setup, run_encoding, run_encoding_sig_coeffs,
+                             write_encoding_results, write_encoding_sig_coeffs_results)
 from tfsenc_load_signal import load_electrode_data
 from tfsenc_read_datum import read_datum
 from utils import load_pickle, main_timer
@@ -132,12 +132,19 @@ def single_electrode_encoding(electrode, args, datum, stitch_index):
     if args.comp and len(comp_data[0]) > 0:  # Comprehension
         if len(np.unique(comp_data[2])) < args.cv_fold_num:
             print(f"{args.sid} {elec_name} failed comp groupkfold", flush=True)
+        # Check if get_sae_sig_coeffs in args exists and run accordingly
+        elif 'get_sae_sig_coeffs' in args and args.get_sae_sig_coeffs:
+            result = run_encoding_sig_coeffs(args, *comp_data)
+            write_encoding_sig_coeffs_results(args, result, f"{elec_name}_comp")
         else:
             result = run_encoding(args, *comp_data)
             write_encoding_results(args, result, f"{elec_name}_comp")
     if args.prod and len(prod_data[0]) > 0:  # Production
         if len(np.unique(prod_data[2])) < args.cv_fold_num:
             print(f"{args.sid} {elec_name} failed prod groupkfold", flush=True)
+        elif 'get_sae_sig_coeffs' in args and args.get_sae_sig_coeffs:
+            result = run_encoding_sig_coeffs(args, *prod_data)
+            write_encoding_sig_coeffs_results(args, result, f"{elec_name}_prod")
         else:
             result = run_encoding(args, *prod_data)
             write_encoding_results(args, result, f"{elec_name}_prod")

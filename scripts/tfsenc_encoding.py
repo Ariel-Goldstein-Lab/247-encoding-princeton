@@ -3,7 +3,9 @@ import os
 
 import numpy as np
 import pandas as pd
+import pickle
 import torch
+import statsmodels.api as sm
 from himalaya.kernel_ridge import (ColumnKernelizer, Kernelizer, KernelRidgeCV,
                                    MultipleKernelRidgeCV)
 from himalaya.ridge import ColumnTransformerNoStack, GroupRidgeCV, RidgeCV
@@ -148,6 +150,98 @@ def encoding_correlation(CA, CB):
     return r, p, t
 
 
+def encoding_regression_sig_coeffs(args, X, Y, folds):
+    amount_alphas_to_check = 50#30
+
+    nwords = X.shape[0]  # Num of words
+    nlags = Y.shape[1] if Y.shape[1:] else 1  # Num of lags
+    linear_dim = args.pca_to if args.regularization == "none" else X.shape[1]
+    # results = pd.DataFrame(
+    # index=pd.MultiIndex.from_product(
+    #     [range(nlags), range(linear_dim)],
+    #     names=['nlags', 'linear_dim']
+    # ),
+    # columns=['lasso_coeff', 'ols_coeff', 'pvalue']
+    # )
+
+    Y -= np.mean(Y, axis=0)  # Center Y
+
+    # Run LassoCV:
+    alphas = np.logspace(-2, 30, amount_alphas_to_check)#alphas = np.logspace(-1, 20, amount_alphas_to_check)
+    print(f"Running LassoCV, emb_dim = {X.shape[1]}", flush=True)
+
+    model = make_pipeline(StandardScaler(), SparseGroupLassoCV(l1_regs=alphas, l21_regs=[0], groups=None,
+                                                               solver_params=dict(max_iter=5000)))
+    torch.cuda.empty_cache()
+    model.fit(X, Y)
+
+    Yhat = model.predict(X)
+    lasso_corrs = correlation_score(Y, Yhat).T
+
+    linmodel = model[-1]
+    lasso_coeffs = linmodel.coef_.reshape(-1, nlags)  # NMTODO himalaya (linear_dim, nlags)  e.g 50 x n
+    best_l1_regs = linmodel.best_l1_reg_.cpu().numpy()
+    cv_scores = linmodel.cv_scores_.cpu().numpy()
+
+    # YHAT = Yhat.cpu().reshape(-1, nlags)
+
+    lasso_model_fitting_params = {"coeffs": lasso_coeffs,
+                            "best_l1_regs": best_l1_regs,
+                            "cv_scores": cv_scores,
+                            }
+    # results['lasso_coeff'] = lasso_coeffs.T.flatten()
+
+    # Run OLS on Lasso coefficients
+    coeffs_conversion_dict = np.empty((nlags), dtype=object)  # Each element is a dict converting index of new coeff into original coeff index
+    coeffs_conversion_dict.fill(None)
+
+    for lag in range(nlags):
+        non_zero_coeffs_col = np.nonzero(lasso_coeffs[:, lag])
+        col_dict = dict()
+        if len(non_zero_coeffs_col) > 0:
+            for new_idx, orig_idx in enumerate(non_zero_coeffs_col):
+                col_dict[new_idx] = orig_idx
+            coeffs_conversion_dict[lag] = col_dict
+
+    # Using non zero coefficients of lasso to do OLS and get coeff significance (pvalues, conf intervals, etc.)
+    # Note that since the number of non-zero coefficients can vary for each lag, we will do OLS for each lag separately
+
+    ols_model_fitting_params = np.empty((nlags), dtype=object)  # Each element is a dict converting index of new coeff into original coeff index
+    ols_model_fitting_params.fill(None)
+    ols_r2 = np.zeros((nlags))  # R2 for each lag, size (nlags,)
+    ols_r2.fill(np.nan)
+
+    for lag in range(nlags):
+        ind_lag_non_zero_coeffs = lasso_coeffs[:, lag] != 0
+        if ind_lag_non_zero_coeffs.sum() > 0:
+            OLS_X = X[:, ind_lag_non_zero_coeffs] # X indecies where coeffs of lasso != 0, shape (nwords, n_non_zero_coeffs)
+            OLS_Y = Y[:, lag] # Y for the specific lag, shape (nwords,)
+
+            OLS_X_with_intercept = sm.add_constant(OLS_X) # Intercept for OLS
+            model = sm.OLS(OLS_Y, OLS_X_with_intercept).fit()
+
+            # Get all statistics
+            print(model.summary())
+
+            # Access specific values
+            r2 = model.rsquared # size 1
+            coeffs = model.params  # size linear_dim + 1 (intercept)
+            p_values = model.pvalues # size linear_dim + 1 (intercept)
+            conf_intervals = model.conf_int() # size (linear_dim + 1, 2) - lower and upper bounds for each coeff
+
+            ols_r2[lag] = r2
+
+            ols_model_fitting_params[lag] = {
+                "coeffs": coeffs,
+                "p_values": p_values,
+                "conf_intervals": conf_intervals,
+            }
+
+        #else: len(non_zero_vals) == 0: # No coeffs to do OLS on, all were 0, supposed to be same as - coeffs_conversion_dict[lag] == np.nan
+
+    return (lasso_corrs, lasso_model_fitting_params, ols_r2, ols_model_fitting_params, coeffs_conversion_dict)
+
+
 def encoding_regression(args, X, Y, folds):
 
     amount_alphas_to_check = 30
@@ -220,6 +314,12 @@ def encoding_regression(args, X, Y, folds):
 
         if hasattr(linmodel, "coef_"):
             coeffs[i, :, :] = linmodel.coef_.reshape(-1, nlags)  # NMTODO himalaya (n_features, n_targets)  e.g 50 x n
+
+        # if args.regularization == "ridge" or args.regularization == "lasso" or args.pca_to==0:
+        #     coeffs[i, :, :] = coefficients
+        # else:
+        #     coeffs[i, :, :] = coefficients.T
+        # intercepts[i, :] = intercept
         if hasattr(linmodel, "best_l1_reg_"):
             best_l1_regs[i,:] = linmodel.best_l1_reg_.cpu().numpy()
 
@@ -228,6 +328,9 @@ def encoding_regression(args, X, Y, folds):
                 cv_scores[i, :, :] = linmodel.cv_scores_.cpu().numpy()
             else:
                 cv_scores[i, :, :] = linmodel.cv_scores_
+
+        # if pca:
+        #     results["pca_xv"].append(model[0].explained_variance_ratio_.astype(np.float32))
 
         Ynew[folds == i, :] = Ytest.reshape(-1, nlags)
         if hasattr(foldYhat, 'cpu'):  # If foldYhat is a torch tensor
@@ -242,18 +345,19 @@ def encoding_regression(args, X, Y, folds):
 
 def run_encoding_sig_coeffs(args, X, Y, folds):
     # train lm and predict
-    Y_hat, Y_new, corrs, model_fittind_params = encoding_regression_sig_coeffs(args, X, Y, folds)
+    (lasso_corrs, lasso_model_fitting_params, ols_r2, ols_model_fitting_params,
+     coeffs_conversion_dict) = encoding_regression_sig_coeffs(args, X, Y, folds)
 
     # Correlation over all folds
     # corr_datum = correlation_score(Y_new, Y_hat)
     # corrs.append(corr_datum)
+    #
+    # if torch.is_tensor(corrs[-1]):  # torch tensor
+    #     corrs = torch.stack(corrs)
+    # else:
+    #     corrs = np.stack(corrs)
 
-    if torch.is_tensor(corrs[-1]):  # torch tensor
-        corrs = torch.stack(corrs)
-    else:
-        corrs = np.stack(corrs)
-
-    return corrs, model_fittind_params
+    return lasso_corrs, lasso_model_fitting_params, ols_r2, ols_model_fitting_params, coeffs_conversion_dict
 
 
 def run_encoding(args, X, Y, folds):
@@ -301,8 +405,48 @@ def write_encoding_results(args, results, filename):
             model_fittind_params[param] = model_fittind_params[param].cpu().numpy()
         np.save(param_filename,model_fittind_params[param])
 
-    # Save intercepts
-    # intercepts_filename = filename+"_intercepts.pkl"
-    # np.save(intercepts_filename, intercepts)
+    return
+
+def write_encoding_sig_coeffs_results(args, results, filename):
+    """Write output into csv files
+
+    Args:
+        args (namespace): commandline arguments
+        results: (correlation results, linear coefficients, intercept)
+        filename: usually electrode name plus 'prod' or 'comp'. No need to add filetype ending.
+
+    Returns:
+        None
+    """
+    # corrs, model_fittind_params = results
+    lasso_corrs, lasso_model_fitting_params, ols_r2, ols_model_fitting_params, coeffs_conversion_dict = results
+    filename = os.path.join(args.output_dir, filename)
+
+    # Save correlations
+    lasso_corr_filename = filename+"_lasso.csv"
+    if torch.is_tensor(lasso_corrs):
+        lasso_corrs = lasso_corrs.cpu().numpy()
+    lasso_corrs_df = pd.DataFrame(lasso_corrs)
+    lasso_corrs_df.to_csv(lasso_corr_filename, index=False, header=False)
+
+    ols_r2_filename = filename+"_ols.csv"
+    if torch.is_tensor(ols_r2):
+        ols_r2 = ols_r2.cpu().numpy()
+    ols_r2_df = pd.DataFrame(ols_r2)
+    ols_r2_df.to_csv(ols_r2_filename, index=False, header=False)
+
+    # Save coefficients
+    for param in lasso_model_fitting_params.keys():
+        param_filename = filename+"_"+param+"_lasso"
+        if torch.is_tensor(lasso_model_fitting_params[param]):
+            lasso_model_fitting_params[param] = lasso_model_fitting_params[param].cpu().numpy()
+        np.save(param_filename,lasso_model_fitting_params[param])
+
+    with open(filename+"_ols.pkl", 'wb') as f:
+        pickle.dump(ols_model_fitting_params, f)
+
+    # Save coeffs conversion dict
+    coeffs_conversion_filename = filename+"_coeffs_conversion_dict.npy"
+    np.save(coeffs_conversion_filename, coeffs_conversion_dict)
 
     return
