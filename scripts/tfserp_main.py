@@ -51,7 +51,7 @@ def single_electrode_erp(electrode, args, datum, stitch_index):
         return (args.sid, None, 0, 0)
 
     # Load signal Data
-    elec_signal, missing_convos = load_electrode_data(args, elec_id, stitch_index, True)
+    elec_signal, missing_convos = load_electrode_data(args, sid, elec_id, stitch_index, True)
     if len(missing_convos) > 0:  # modify datum based on missing signal
         elec_datum = datum.loc[
             ~datum["conversation_name"].isin(missing_convos)

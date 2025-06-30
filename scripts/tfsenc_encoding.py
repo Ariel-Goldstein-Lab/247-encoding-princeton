@@ -159,10 +159,12 @@ def encoding_regression(args, X, Y, folds):
     YHAT = np.zeros((nwords, nlags)).astype("float32")
     Ynew = np.zeros((nwords, nlags)).astype("float32")
     corrs = []
-    coeffs = np.zeros((args.cv_fold_num, linear_dim, nlags))
-    best_l1_regs = np.zeros((args.cv_fold_num, nlags))  # best l1 reg (lasso) or alpha (ridge)
-    cv_scores = np.zeros((args.cv_fold_num, amount_alphas_to_check, nlags))  # cross-validation scores
-
+    coeffs = np.empty((args.cv_fold_num, linear_dim, nlags))
+    coeffs.fill(np.nan)
+    best_l1_regs = np.empty((args.cv_fold_num, nlags)) # best l1 reg (lasso) or alpha (ridge)
+    best_l1_regs.fill(np.nan)
+    cv_scores = np.empty((args.cv_fold_num, amount_alphas_to_check, nlags)) # cross-validation scores of choosing alpha
+    cv_scores.fill(np.nan)
     # intercepts = np.zeros((args.cv_fold_num, nlags)) # intercept (linear reg) or alpha (ridge)
 
     for i in range(0, args.cv_fold_num):
@@ -184,11 +186,11 @@ def encoding_regression(args, X, Y, folds):
                 model = make_pipeline(StandardScaler(), RidgeCV(alphas=alphas))
 
         elif args.regularization == "lasso":
-            alphas = np.logspace(-1, 20, amount_alphas_to_check)
+            alphas = np.logspace(-1, 20, amount_alphas_to_check) #alphas = np.logspace(-1, 20, amount_alphas_to_check)
             if i == 0:
                 print(f"Running LassoCV, emb_dim = {Xtrain.shape[1]}", flush=True)
             # TODO: maybe try also sklearn.linear_model.MultiTaskLassoCV or MultiTaskElasticNetCV as well
-            model = make_pipeline(StandardScaler(), SparseGroupLassoCV(l1_regs=alphas, l21_regs=[0], groups=None, solver_params=dict(max_iter=1000),))
+            model = make_pipeline(StandardScaler(), SparseGroupLassoCV(l1_regs=alphas, l21_regs=[0], groups=None, solver_params=dict(max_iter=5000),))
 
         else:  # ols, no regularization
             if args.pca_to == 0: # No pca
@@ -216,16 +218,25 @@ def encoding_regression(args, X, Y, folds):
         # Coeff & bias
         linmodel = model[-1]
 
-        coeffs[i, :, :] = linmodel.coef_.reshape(-1, nlags)  # NMTODO himalaya (n_features, n_targets)  e.g 50 x n
-        best_l1_regs[i,:] = linmodel.best_l1_reg_.cpu().numpy()
-        cv_scores[i, :, :] = linmodel.cv_scores_.cpu().numpy()
+        if hasattr(linmodel, "coef_"):
+            coeffs[i, :, :] = linmodel.coef_.reshape(-1, nlags)  # NMTODO himalaya (n_features, n_targets)  e.g 50 x n
+        if hasattr(linmodel, "best_l1_reg_"):
+            best_l1_regs[i,:] = linmodel.best_l1_reg_.cpu().numpy()
+
+        if hasattr(linmodel, "cv_scores_"):
+            if hasattr(linmodel.cv_scores_, 'cpu'): # Tensor and not Numpy
+                cv_scores[i, :, :] = linmodel.cv_scores_.cpu().numpy()
+            else:
+                cv_scores[i, :, :] = linmodel.cv_scores_
 
         Ynew[folds == i, :] = Ytest.reshape(-1, nlags)
-        YHAT[folds == i, :] = foldYhat.cpu().reshape(-1, nlags)
+        if hasattr(foldYhat, 'cpu'):  # If foldYhat is a torch tensor
+            foldYhat = foldYhat.cpu()  # Convert to numpy
+        YHAT[folds == i, :] = foldYhat.reshape(-1, nlags)
 
     model_fittind_params = {"coeffs": coeffs,
                             "best_l1_regs": best_l1_regs,
-                            # "cv_scores": cv_scores,
+                            "cv_scores": cv_scores,
                             }
     return (YHAT, Ynew, corrs, model_fittind_params)
 

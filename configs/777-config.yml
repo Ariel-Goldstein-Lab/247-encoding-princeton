@@ -1,0 +1,7 @@
+
+# Subject
+sid: 777
+project_id: podcast
+conv_ids: np.arange(1, 2)
+elecs: np.arange(1, 2000) #1379
+sig_elec_file: podcast_160.csv #podcast_777_glove_elecs.csv#podcast_160.csv#podcast_all.csv
