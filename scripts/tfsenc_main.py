@@ -7,7 +7,7 @@ from multiprocessing import Pool, cpu_count
 import numpy as np
 import pandas as pd
 from tfsenc_config import parse_arguments, setup_environ, write_config
-from tfsenc_encoding import (encoding_setup, run_encoding, run_encoding_sig_coeffs,
+from tfsenc_encoding import (encoding_setup, run_encoding, run_correlations, run_encoding_sig_coeffs,
                              write_encoding_results, write_encoding_sig_coeffs_results)
 from tfsenc_load_signal import load_electrode_data
 from tfsenc_read_datum import read_datum
@@ -134,6 +134,7 @@ def single_electrode_encoding(electrode, args, datum, stitch_index):
             print(f"{args.sid} {elec_name} failed comp groupkfold", flush=True)
         # Check if get_sae_sig_coeffs in args exists and run accordingly
         elif 'get_sae_sig_coeffs' in args and args.get_sae_sig_coeffs:
+            # run_correlations(args, *comp_data, f"{elec_name}_comp")
             result = run_encoding_sig_coeffs(args, *comp_data)
             write_encoding_sig_coeffs_results(args, result, f"{elec_name}_comp")
         else:
@@ -143,6 +144,7 @@ def single_electrode_encoding(electrode, args, datum, stitch_index):
         if len(np.unique(prod_data[2])) < args.cv_fold_num:
             print(f"{args.sid} {elec_name} failed prod groupkfold", flush=True)
         elif 'get_sae_sig_coeffs' in args and args.get_sae_sig_coeffs:
+            # run_correlations(args, *comp_data, f"{elec_name}_prod")
             result = run_encoding_sig_coeffs(args, *prod_data)
             write_encoding_sig_coeffs_results(args, result, f"{elec_name}_prod")
         else:
@@ -171,7 +173,7 @@ def electrodes_encoding(args, electrode_info, datum, stitch_index, parallel=Fals
         pass  # TODO
     else:
         for electrode in electrode_info.items():
-            # if electrode[1].startswith("EEGSO"):
+            # if electrode[0][0] == 743: #if electrode[0].startswith("717"):
             result = single_electrode_encoding(electrode, args, datum, stitch_index)
             print(f"done with {electrode[1]}", flush=True)
             with open(summary_file, "a") as f:

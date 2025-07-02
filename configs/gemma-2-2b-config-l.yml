@@ -1,20 +1,22 @@
+
 # Embeddings
-emb: gemma-scope-2b-pt-res-canonical #=release
+emb: gemma-2-2b
 context_length: 32
 layer_idx: 13 #26
-width: 16k
 
 # Embedding modifications: none, rand, emb, s shift-embhift-emb, concat-emb
 emb_mod: none # shift-emb, concat-emb, rand, arb
-
-pca_to: 50
-regularization: ridge # ridge, lasso or none
+# pca_to not used for lasso
+pca_to: 0
+regularization: lasso # ridge, lasso or none
 
 # Lags
 lags: np.arange(-2000,2001,25)
 output_dir_name: lag2k-25-all
 
 # Alphas
-min_alpha: 0
-max_alpha: 20
+min_alpha: -2
+max_alpha: 30
 amount_of_alphas: 40
+
+get_sae_sig_coeffs: False

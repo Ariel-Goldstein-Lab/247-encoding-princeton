@@ -140,10 +140,7 @@ def setup_environ(args):
     )
 
     # input directory paths (elec mat files)
-    ELEC_SIGNAL_DIR = ELEC_SIGNAL_FOLDER_MAP[args.project_id]
-    args.elec_signal_file_path = os.path.join(
-        ELEC_SIGNAL_DIR, str(args.sid), "NY*Part*conversation*"
-    )
+    args.elec_signal_dir = ELEC_SIGNAL_FOLDER_MAP[args.project_id]
     args.elec_signal_process_flag = ELEC_SIGNAL_PREPROCESS_MAP[args.project_id][
         str(args.sid)
     ]
@@ -158,6 +155,11 @@ def setup_environ(args):
         res_dir_base += f"-pca{args.pca_to}"
     if args.emb_norm:
         res_dir_base += f"-norm{args.emb_norm}"
+    if hasattr(args, "amount_of_alphas"):
+        res_dir_base += f"-alphas_{args.min_alpha}_{args.max_alpha}_{args.amount_of_alphas}"
+    if hasattr(args, "get_sae_sig_coeffs") and args.get_sae_sig_coeffs:
+        res_dir_base += "-sig_coeffs"
+        # res_dir_base += "-corr_coeffs"
     RESULT_CHILD_DIR = res_dir_base
     args.output_dir = os.path.join(OUTPUT_DIR, RESULT_PARENT_DIR, RESULT_CHILD_DIR)
     os.makedirs(args.output_dir, exist_ok=True)

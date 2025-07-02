@@ -14,4 +14,9 @@ regularization: lasso # ridge, lasso or none
 lags: np.arange(-2000,2001,25)
 output_dir_name: lag2k-25-all
 
-get_sae_sig_coeffs: True # Get SAE signal significant coefficients, runs lasso and then OLS
+# Alphas
+min_alpha: -2
+max_alpha: 30
+amount_of_alphas: 40
+
+get_sae_sig_coeffs: False #True # Get SAE signal significant coefficients, runs lasso and then OLS

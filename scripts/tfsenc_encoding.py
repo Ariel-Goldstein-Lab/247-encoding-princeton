@@ -6,6 +6,7 @@ import pandas as pd
 import pickle
 import torch
 import statsmodels.api as sm
+from scipy.stats import pearsonr
 from himalaya.kernel_ridge import (ColumnKernelizer, Kernelizer, KernelRidgeCV,
                                    MultipleKernelRidgeCV)
 from himalaya.ridge import ColumnTransformerNoStack, GroupRidgeCV, RidgeCV
@@ -151,8 +152,6 @@ def encoding_correlation(CA, CB):
 
 
 def encoding_regression_sig_coeffs(args, X, Y, folds):
-    amount_alphas_to_check = 50#30
-
     nwords = X.shape[0]  # Num of words
     nlags = Y.shape[1] if Y.shape[1:] else 1  # Num of lags
     linear_dim = args.pca_to if args.regularization == "none" else X.shape[1]
@@ -167,7 +166,7 @@ def encoding_regression_sig_coeffs(args, X, Y, folds):
     Y -= np.mean(Y, axis=0)  # Center Y
 
     # Run LassoCV:
-    alphas = np.logspace(-2, 30, amount_alphas_to_check)#alphas = np.logspace(-1, 20, amount_alphas_to_check)
+    alphas = np.logspace(args.min_alpha, args.max_alpha, args.amount_of_alphas)
     print(f"Running LassoCV, emb_dim = {X.shape[1]}", flush=True)
 
     model = make_pipeline(StandardScaler(), SparseGroupLassoCV(l1_regs=alphas, l21_regs=[0], groups=None,
@@ -243,9 +242,6 @@ def encoding_regression_sig_coeffs(args, X, Y, folds):
 
 
 def encoding_regression(args, X, Y, folds):
-
-    amount_alphas_to_check = 30
-
     nwords = X.shape[0] # Num of words
     nlags = Y.shape[1] if Y.shape[1:] else 1 # Num of lags
     linear_dim = args.pca_to if args.regularization == "none" else X.shape[1]
@@ -257,7 +253,7 @@ def encoding_regression(args, X, Y, folds):
     coeffs.fill(np.nan)
     best_l1_regs = np.empty((args.cv_fold_num, nlags)) # best l1 reg (lasso) or alpha (ridge)
     best_l1_regs.fill(np.nan)
-    cv_scores = np.empty((args.cv_fold_num, amount_alphas_to_check, nlags)) # cross-validation scores of choosing alpha
+    cv_scores = np.empty((args.cv_fold_num, args.amount_of_alphas, nlags)) # cross-validation scores of choosing alpha
     cv_scores.fill(np.nan)
     # intercepts = np.zeros((args.cv_fold_num, nlags)) # intercept (linear reg) or alpha (ridge)
 
@@ -269,7 +265,7 @@ def encoding_regression(args, X, Y, folds):
         Ytrain -= np.mean(Ytrain, axis=0)
 
         if args.regularization == "ridge":
-            alphas = np.logspace(0, 20, amount_alphas_to_check)
+            alphas = np.logspace(args.min_alpha, args.max_alpha, args.amount_of_alphas)
             if Xtrain.shape[0] < Xtrain.shape[1]:
                 if i == 0:
                     print(f"Running KernelRidgeCV, emb_dim = {Xtrain.shape[1]}", flush=True)
@@ -280,7 +276,7 @@ def encoding_regression(args, X, Y, folds):
                 model = make_pipeline(StandardScaler(), RidgeCV(alphas=alphas))
 
         elif args.regularization == "lasso":
-            alphas = np.logspace(-1, 20, amount_alphas_to_check) #alphas = np.logspace(-1, 20, amount_alphas_to_check)
+            alphas = np.logspace(args.min_alpha, args.max_alpha, args.amount_of_alphas)
             if i == 0:
                 print(f"Running LassoCV, emb_dim = {Xtrain.shape[1]}", flush=True)
             # TODO: maybe try also sklearn.linear_model.MultiTaskLassoCV or MultiTaskElasticNetCV as well
@@ -321,7 +317,10 @@ def encoding_regression(args, X, Y, folds):
         #     coeffs[i, :, :] = coefficients.T
         # intercepts[i, :] = intercept
         if hasattr(linmodel, "best_l1_reg_"):
-            best_l1_regs[i,:] = linmodel.best_l1_reg_.cpu().numpy()
+            if hasattr(linmodel.best_l1_reg_, 'cpu'):
+                best_l1_regs[i,:] = linmodel.best_l1_reg_.cpu().numpy()
+            else:
+                best_l1_regs[i, :] = linmodel.best_l1_reg_.numpy()
 
         if hasattr(linmodel, "cv_scores_"):
             if hasattr(linmodel.cv_scores_, 'cpu'): # Tensor and not Numpy
@@ -348,15 +347,6 @@ def run_encoding_sig_coeffs(args, X, Y, folds):
     (lasso_corrs, lasso_model_fitting_params, ols_r2, ols_model_fitting_params,
      coeffs_conversion_dict) = encoding_regression_sig_coeffs(args, X, Y, folds)
 
-    # Correlation over all folds
-    # corr_datum = correlation_score(Y_new, Y_hat)
-    # corrs.append(corr_datum)
-    #
-    # if torch.is_tensor(corrs[-1]):  # torch tensor
-    #     corrs = torch.stack(corrs)
-    # else:
-    #     corrs = np.stack(corrs)
-
     return lasso_corrs, lasso_model_fitting_params, ols_r2, ols_model_fitting_params, coeffs_conversion_dict
 
 
@@ -376,6 +366,40 @@ def run_encoding(args, X, Y, folds):
 
     return corrs, model_fittind_params
 
+
+def run_correlations(args, X, Y, folds, filename):
+    # Remove constant vectors
+    X_std = np.std(X, axis=0)
+    non_constant_mask = X_std > 1e-10
+    X_filtered = X[:, non_constant_mask]
+
+    # Run correlations
+    X_reshaped = X_filtered[:, :, np.newaxis]
+    Y_reshaped = Y[:, np.newaxis, :]
+    res = pearsonr(X_reshaped, Y_reshaped, axis=0)
+    cis = res.confidence_interval(confidence_level=0.955)
+
+    # Create full matrices with NaNs for constant vectors
+    full_correlations = np.full((X.shape[1], Y.shape[1]), np.nan)
+    full_correlations[non_constant_mask, :] = res.statistic
+
+    full_p_values = np.full((X.shape[1], Y.shape[1]), np.nan)
+    full_p_values[non_constant_mask, :] = res.pvalue
+
+    full_cis = np.full((X.shape[1], Y.shape[1], 2), np.nan)
+    full_cis[non_constant_mask, :, 0] = cis.low
+    full_cis[non_constant_mask, :, 1] = cis.high
+
+    # Save
+    filename = os.path.join(args.output_dir, filename)
+    corr_filename = filename + "_corr.npy"
+    np.save(corr_filename, full_correlations)
+    pval_filename = filename + "_pval.npy"
+    np.save(pval_filename, full_p_values)
+    ci_filename = filename + "_ci.npy"
+    np.save(ci_filename, full_cis)
+
+    return
 
 def write_encoding_results(args, results, filename):
     """Write output into csv files

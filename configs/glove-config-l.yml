@@ -8,13 +8,15 @@ layer_idx: 0
 emb_mod: none
 # pca_to not used for ridge
 pca_to: 50
-regularization: ridge # ridge, lasso or none
+regularization: lasso # ridge, lasso or none
 
 # Lags
 lags: np.arange(-2000,2001,25)
 output_dir_name: lag2k-25-all
 
 # Alphas
-min_alpha: 0
-max_alpha: 20
+min_alpha: -2
+max_alpha: 30
 amount_of_alphas: 40
+
+get_sae_sig_coeffs: False
