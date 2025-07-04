@@ -17,7 +17,7 @@ def count_files_by_sid_elec(directory='.', pattern=None):
     # Default pattern: matches <sid>_<elec_id>_<ending>
     # Assumes sid and elec_id contain word characters, numbers, or hyphens
     if pattern is None:
-        pattern = r'^([^_]+_[^_]+)_.*'
+        pattern= r'^(.*?)(?=_(?:comp|prod))'
 
     file_counts = defaultdict(int)
     compiled_pattern = re.compile(pattern)

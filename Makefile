@@ -26,7 +26,7 @@ CMD := sbatch --time=$(TIME) --mem=$(MEM) --gres=gpu:$(GPUS) --job-name=enc_$(SI
 # {echo | python | sbatch --time=$(TIME) --mem=$(MEM) --gres=gpu:$(GPUS) --job-name=$(SID)-$(EMB)-r_$(REGULARIZATION) submit.sh}
 # --dependency=afterok:$JOB_ID
 
-# Define the config path based on RIDGE value
+# Define the config path based on REGULARIZATION value
 ifeq ($(REGULARIZATION),ridge)
     EMB_CONFIG_PATH := $(EMB)-config-r.yml
 else ifeq ($(REGULARIZATION),lasso)

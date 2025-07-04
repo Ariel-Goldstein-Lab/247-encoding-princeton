@@ -150,16 +150,18 @@ def setup_environ(args):
     RESULT_PARENT_DIR = f"{args.user_id[0:2]}-{args.project_id}-{args.sid}-{args.emb}-{args.output_dir_name}"
     res_dir_base = f"{args.user_id[0:2]}-{args.window_size}ms-{args.sid}-lay{args.layer_idx}-con{args.context_length}"
     if args.regularization in {"ridge", "lasso"}:
-        res_dir_base += f"-reg{args.regularization}"
+        if args.type_encoding != "correlations":
+            res_dir_base += f"-reg{args.regularization}"
     elif args.pca_to:
         res_dir_base += f"-pca{args.pca_to}"
     if args.emb_norm:
         res_dir_base += f"-norm{args.emb_norm}"
-    if hasattr(args, "amount_of_alphas"):
+    if hasattr(args, "amount_of_alphas") and args.type_encoding != "correlations":
         res_dir_base += f"-alphas_{args.min_alpha}_{args.max_alpha}_{args.amount_of_alphas}"
-    if hasattr(args, "get_sae_sig_coeffs") and args.get_sae_sig_coeffs:
+    if args.type_encoding == "lasso_sig_coeffs": #normal, lasso_sig_coeffs, correlation
         res_dir_base += "-sig_coeffs"
-        # res_dir_base += "-corr_coeffs"
+    elif args.type_encoding == "correlations":
+        res_dir_base += "-corr_coeffs"
     RESULT_CHILD_DIR = res_dir_base
     args.output_dir = os.path.join(OUTPUT_DIR, RESULT_PARENT_DIR, RESULT_CHILD_DIR)
     os.makedirs(args.output_dir, exist_ok=True)

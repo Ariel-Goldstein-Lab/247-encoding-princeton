@@ -311,11 +311,6 @@ def encoding_regression(args, X, Y, folds):
         if hasattr(linmodel, "coef_"):
             coeffs[i, :, :] = linmodel.coef_.reshape(-1, nlags)  # NMTODO himalaya (n_features, n_targets)  e.g 50 x n
 
-        # if args.regularization == "ridge" or args.regularization == "lasso" or args.pca_to==0:
-        #     coeffs[i, :, :] = coefficients
-        # else:
-        #     coeffs[i, :, :] = coefficients.T
-        # intercepts[i, :] = intercept
         if hasattr(linmodel, "best_l1_reg_"):
             if hasattr(linmodel.best_l1_reg_, 'cpu'):
                 best_l1_regs[i,:] = linmodel.best_l1_reg_.cpu().numpy()

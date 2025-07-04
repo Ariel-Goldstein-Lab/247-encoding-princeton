@@ -18,5 +18,3 @@ output_dir_name: lag2k-25-all
 min_alpha: -2
 max_alpha: 30
 amount_of_alphas: 40
-
-get_sae_sig_coeffs: False
