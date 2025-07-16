@@ -7,7 +7,7 @@ from multiprocessing import Pool, cpu_count
 import numpy as np
 import pandas as pd
 from tfsenc_config import parse_arguments, setup_environ, write_config
-from tfsenc_encoding import (encoding_setup, run_encoding, run_correlations, run_encoding_sig_coeffs,
+from tfsenc_encoding import (encoding_setup, run_encoding, run_correlations, run_encoding_sig_coeffs, run_rafi_encoding,
                              write_encoding_results, write_encoding_sig_coeffs_results)
 from tfsenc_load_signal import load_electrode_data
 from tfsenc_read_datum import read_datum
@@ -140,6 +140,8 @@ def single_electrode_encoding(electrode, args, datum, stitch_index):
         elif args.type_encoding == "lasso_sig_coeffs":
             result = run_encoding_sig_coeffs(args, *comp_data)
             write_encoding_sig_coeffs_results(args, result, f"{elec_name}_comp")
+        elif args.type_encoding == "rafi":
+            run_rafi_encoding(args, elec_datum[elec_datum.speaker != "Speaker1"]["conversation_id"], *comp_data, f"{elec_name}_comp")
         else:
             raise ValueError(f"Unknown encoding type: {args.type_encoding}")
 
@@ -154,6 +156,8 @@ def single_electrode_encoding(electrode, args, datum, stitch_index):
         elif args.type_encoding == "lasso_sig_coeffs":
             result = run_encoding_sig_coeffs(args, *prod_data)
             write_encoding_sig_coeffs_results(args, result, f"{elec_name}_prod")
+        elif args.type_encoding == "rafi":
+            run_rafi_encoding(args, elec_datum[elec_datum.speaker == "Speaker1"]["conversation_id"], *prod_data, f"{elec_name}_prod")
         else:
             raise ValueError(f"Unknown encoding type: {args.type_encoding}")
 

@@ -253,7 +253,7 @@ def encoding_regression(args, X, Y, folds):
     coeffs.fill(np.nan)
     best_l1_regs = np.empty((args.cv_fold_num, nlags)) # best l1 reg (lasso) or alpha (ridge)
     best_l1_regs.fill(np.nan)
-    cv_scores = np.empty((args.cv_fold_num, args.amount_of_alphas, nlags)) # cross-validation scores of choosing alpha
+    cv_scores = np.empty((args.cv_fold_num, args.amount_of_alphas if hasattr(args, "amount_of_alphas") else 0, nlags)) # cross-validation scores of choosing alpha
     cv_scores.fill(np.nan)
     # intercepts = np.zeros((args.cv_fold_num, nlags)) # intercept (linear reg) or alpha (ridge)
 
@@ -292,7 +292,7 @@ def encoding_regression(args, X, Y, folds):
                     model = make_pipeline(StandardScaler(), LinearRegression())
             else:  # pca + ols
                 if i == 0:
-                    print(f"Running PCA (from {Xtest.shape[1]} to {args.pca_to}) + OLS", flush=True)
+                    print(f"Running PCA (from {Xtrain.shape[1]} to {args.pca_to}) + OLS", flush=True)
                 model = make_pipeline(
                     StandardScaler(), PCA(args.pca_to, whiten=True), LinearRegression()
                 )
@@ -361,6 +361,86 @@ def run_encoding(args, X, Y, folds):
 
     return corrs, model_fittind_params
 
+def run_rafi_encoding(args, conversation_ids, X, Y, _, filename):
+    nwords = X.shape[0] # Num of words
+    nlags = Y.shape[1] if Y.shape[1:] else 1 # Num of lags
+    linear_dim = args.pca_to if args.regularization == "none" else X.shape[1]
+
+    corrs_per_diff = {i:[] for i in range(0, conversation_ids.max())}
+    models = {i:None for i in conversation_ids.unique()}
+
+    for train_conv in conversation_ids.unique():
+        Xtrain = X[conversation_ids == train_conv]
+        Ytrain = Y[conversation_ids == train_conv]
+        Ytrain -= np.mean(Ytrain, axis=0)
+
+        if args.regularization == "ridge":
+            alphas = np.logspace(args.min_alpha, args.max_alpha, args.amount_of_alphas)
+            if Xtrain.shape[0] < Xtrain.shape[1]:
+                model = make_pipeline(StandardScaler(), KernelRidgeCV(alphas=alphas))
+            else:
+                model = make_pipeline(StandardScaler(), RidgeCV(alphas=alphas))
+        elif args.regularization == "lasso":
+            alphas = np.logspace(args.min_alpha, args.max_alpha, args.amount_of_alphas)
+            # TODO: maybe try also sklearn.linear_model.MultiTaskLassoCV or MultiTaskElasticNetCV as well
+            model = make_pipeline(StandardScaler(), SparseGroupLassoCV(l1_regs=alphas, l21_regs=[0], groups=None, solver_params=dict(max_iter=5000), ))
+        else:  # ols, no regularization
+            if args.pca_to == 0:  # No pca
+                if args.himalaya:
+                    model = make_pipeline(StandardScaler(), RidgeCV(alphas=[1e-9]))
+                else:
+                    model = make_pipeline(StandardScaler(), LinearRegression())
+            else:  # pca + ols
+                model = make_pipeline(
+                    StandardScaler(), PCA(args.pca_to, whiten=True), LinearRegression()
+                )
+
+        torch.cuda.empty_cache()
+        model.fit(Xtrain, Ytrain)
+
+        models[train_conv] = model
+
+        diff = 0
+        while train_conv + diff <= conversation_ids.max():
+            if train_conv + diff not in conversation_ids.unique():
+                print(f"Conversation {train_conv + diff} not found in conversation_ids, when having train_conv of {train_conv} and diff of {diff}, skipping", flush=True)
+                diff += 1
+                continue
+            test_conv = train_conv + diff
+            Xtest = X[conversation_ids == test_conv]
+            Ytest = Y[conversation_ids == test_conv]
+            Ytest -= np.mean(Ytrain, axis=0)
+
+            # Prediction & Correlation
+            testYhat = model.predict(Xtest)
+            fold_cors = correlation_score(Ytest, testYhat)
+            corrs_per_diff[diff].append(fold_cors)
+
+            diff += 1
+
+    # Save
+    filename = os.path.join(args.output_dir, filename)
+
+    # Save correlations
+    for diff in range(0, conversation_ids.max()):
+        corr_filename = filename +f"_diff_{diff}.csv"
+        corrs = corrs_per_diff[diff]
+
+        if torch.is_tensor(corrs[-1]):  # torch tensor
+            corrs = torch.stack(corrs)
+        else:
+            corrs = np.stack(corrs)
+        if torch.is_tensor(corrs):
+            corrs = corrs.cpu().numpy()
+
+        corrs_df = pd.DataFrame(corrs)
+        corrs_df.to_csv(corr_filename, index=False, header=False)
+
+    # Save models
+    models_filename = filename + "_models.pkl"
+    with open(models_filename, 'wb') as f:
+        pickle.dump(models, f)
+    return
 
 def run_correlations(args, X, Y, folds, filename):
     # Remove constant vectors

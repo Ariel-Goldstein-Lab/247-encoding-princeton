@@ -162,6 +162,8 @@ def setup_environ(args):
         res_dir_base += "-sig_coeffs"
     elif args.type_encoding == "correlations":
         res_dir_base += "-corr_coeffs"
+    elif args.type_encoding == "rafi":
+        res_dir_base += "-rafi"
     RESULT_CHILD_DIR = res_dir_base
     args.output_dir = os.path.join(OUTPUT_DIR, RESULT_PARENT_DIR, RESULT_CHILD_DIR)
     os.makedirs(args.output_dir, exist_ok=True)

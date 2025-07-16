@@ -1,10 +1,10 @@
-
 # Embeddings
-emb: gpt2-xl
-context_length: 32 #1024
-layer_idx: 24 #/48
+emb: gemma-scope-2b-pt-res-canonical #=release
+context_length: 32
+layer_idx: 13 #26
+width: 16k
 
-# Embedding modifications: none, rand, emb, shift-emb, concat-emb
+# Embedding modifications: none, rand, emb, s shift-embhift-emb, concat-emb
 emb_mod: none # shift-emb, concat-emb, rand, arb
 
 pca_to: 50
