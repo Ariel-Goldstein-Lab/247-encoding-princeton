@@ -150,6 +150,74 @@ def encoding_correlation(CA, CB):
 
     return r, p, t
 
+def encoding_regression_all_data(args, X, Y, folds, info):
+    nwords = X.shape[0]  # Num of words
+    nlags = Y.shape[1] if Y.shape[1:] else 1  # Num of lags
+    linear_dim = args.pca_to if args.regularization == "none" else X.shape[1]
+
+    coeffs = np.empty((args.cv_fold_num, linear_dim, nlags))
+    coeffs.fill(np.nan)
+    best_l1_regs = np.empty((args.cv_fold_num, nlags)) # best l1 reg (lasso) or alpha (ridge)
+    best_l1_regs.fill(np.nan)
+    cv_scores = np.empty((args.cv_fold_num, args.amount_of_alphas if hasattr(args, "amount_of_alphas") else 0, nlags)) # cross-validation scores of choosing alpha
+    cv_scores.fill(np.nan)
+
+    Y -= np.mean(Y, axis=0)  # Center Y
+
+    if args.regularization == "ridge":
+        alphas = np.logspace(args.min_alpha, args.max_alpha, args.amount_of_alphas)
+        # if X.shape[0] < X.shape[1]:
+        #     print(f"Running KernelRidgeCV, emb_dim = {X.shape[1]}", flush=True)
+        #     model = make_pipeline(StandardScaler(), KernelRidgeCV(alphas=alphas))
+        # else:
+        print(f"Running RidgeCV, emb_dim = {X.shape[1]}", flush=True)
+        model = make_pipeline(StandardScaler(), RidgeCV(alphas=alphas))
+
+    elif args.regularization == "lasso":
+        alphas = np.logspace(args.min_alpha, args.max_alpha, args.amount_of_alphas)
+        print(f"Running LassoCV, emb_dim = {X.shape[1]}", flush=True)
+        # TODO: maybe try also sklearn.linear_model.MultiTaskLassoCV or MultiTaskElasticNetCV as well
+        model = make_pipeline(StandardScaler(), SparseGroupLassoCV(l1_regs=alphas, l21_regs=[0], groups=None,
+                                                                   solver_params=dict(max_iter=5000), ))
+    else:  # ols, no regularization
+        if args.pca_to == 0:  # No pca
+            print(f"Running OLS, emb_dim = {X.shape[1]}", flush=True)
+            if args.himalaya:
+                model = make_pipeline(StandardScaler(), RidgeCV(alphas=[1e-9]))
+            else:
+                model = make_pipeline(StandardScaler(), LinearRegression())
+        else:  # pca + ols
+            print(f"Running PCA (from {X.shape[1]} to {args.pca_to}) + OLS", flush=True)
+            model = make_pipeline(
+                StandardScaler(), PCA(args.pca_to, whiten=True), LinearRegression()
+            )
+
+
+    torch.cuda.empty_cache()
+    model.fit(X, Y)
+
+    Yhat = model.predict(X)
+    corrs = correlation_score(Y, Yhat)
+
+    linmodel = model[-1]
+
+    coeffs = linmodel.coef_.reshape(-1, nlags)
+    # best_l1_regs = None
+    # if hasattr(linmodel, 'best_l1_reg_'):
+    #     best_l1_regs = linmodel.best_l1_reg_.cpu().numpy()
+    #
+    # cv_scores = None
+    # if hasattr(linmodel, 'cv_scores_'):
+    #     cv_scores = linmodel.cv_scores_.cpu().numpy()
+
+    model_fitting_params = {"coeffs": coeffs,
+                            # "best_l1_regs": best_l1_regs,
+                            # "cv_scores": cv_scores,
+                            }
+
+
+    return (None, None, corrs, model_fitting_params)
+
 
 def encoding_regression_sig_coeffs(args, X, Y, folds):
     nwords = X.shape[0]  # Num of words
@@ -258,7 +326,6 @@ def encoding_regression(args, X, Y, folds):
     # intercepts = np.zeros((args.cv_fold_num, nlags)) # intercept (linear reg) or alpha (ridge)
 
     for i in range(0, args.cv_fold_num):
-
         Xtrain, Xtest = X[folds != i], X[folds == i]
         Ytrain, Ytest = Y[folds != i], Y[folds == i]
         Ytest -= np.mean(Ytrain, axis=0)
@@ -348,16 +415,18 @@ def run_encoding_sig_coeffs(args, X, Y, folds):
 def run_encoding(args, X, Y, folds):
 
     # train lm and predict
-    Y_hat, Y_new, corrs, model_fittind_params = encoding_regression(args, X, Y, folds)
 
+    if args.type_encoding == "normal":
+        Y_hat, Y_new, corrs, model_fittind_params = encoding_regression(args, X, Y, folds, info)
+        if torch.is_tensor(corrs[-1]):  # torch tensor
+            corrs = torch.stack(corrs)
+        else:
+            corrs = np.stack(corrs)
+    elif args.type_encoding == "all_data":
+        _, _, corrs, model_fittind_params = encoding_regression_all_data(args, X, Y, folds, info)
     # Correlation over all folds
     # corr_datum = correlation_score(Y_new, Y_hat)
     # corrs.append(corr_datum)
-
-    if torch.is_tensor(corrs[-1]):  # torch tensor
-        corrs = torch.stack(corrs)
-    else:
-        corrs = np.stack(corrs)
 
     return corrs, model_fittind_params
 

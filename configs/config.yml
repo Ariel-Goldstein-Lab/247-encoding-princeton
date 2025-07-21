@@ -13,4 +13,5 @@ fold_correlation: True # save correlation per fold
 comp: True # Run encoding for words in comprehension
 prod: True # Run encoding for words in production
 
-type_encoding: normal #normal, lasso_sig_coeffs, correlations, rafi
+type_encoding: normal #normal, lasso_sig_coeffs, correlations, rafi, all_data
+# Note: lasso_sig_coeffs runs like all_data when choosing lasso, but it also runs OLS on the chosen coeffs of the lasso model

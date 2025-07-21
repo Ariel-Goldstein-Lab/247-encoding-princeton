@@ -132,7 +132,7 @@ def single_electrode_encoding(electrode, args, datum, stitch_index):
     if args.comp and len(comp_data[0]) > 0:  # Comprehension
         if len(np.unique(comp_data[2])) < args.cv_fold_num:
             print(f"{args.sid} {elec_name} failed comp groupkfold", flush=True)
-        elif args.type_encoding == "normal":
+        elif args.type_encoding == "normal" or args.type_encoding == "all_data":
             result = run_encoding(args, *comp_data)
             write_encoding_results(args, result, f"{elec_name}_comp")
         elif args.type_encoding == "correlations":
@@ -152,7 +152,7 @@ def single_electrode_encoding(electrode, args, datum, stitch_index):
             result = run_encoding(args, *prod_data)
             write_encoding_results(args, result, f"{elec_name}_prod")
         elif args.type_encoding == "correlations":
-            run_correlations(args, *comp_data, f"{elec_name}_prod")
+            run_correlations(args, *prod_data, f"{elec_name}_prod")
         elif args.type_encoding == "lasso_sig_coeffs":
             result = run_encoding_sig_coeffs(args, *prod_data)
             write_encoding_sig_coeffs_results(args, result, f"{elec_name}_prod")
