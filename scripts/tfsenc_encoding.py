@@ -98,6 +98,12 @@ def encoding_setup(args, elec_name, elec_datum, elec_signal):
     comp_X = X[elec_datum.speaker != "Speaker1", :]
     prod_Y = Y[elec_datum.speaker == "Speaker1", :]
     comp_Y = Y[elec_datum.speaker != "Speaker1", :]
+    prod_info = elec_datum[elec_datum.speaker == "Speaker1"]
+    comp_info = elec_datum[elec_datum.speaker != "Speaker1"]
+
+    if args.prob_improb_run == "prob" or args.prob_improb_run == "improb":
+        comp_X, comp_Y, comp_info = get_prob_improb(comp_X, comp_Y, comp_info, mode=args.prob_improb_run)
+        prod_X, prod_Y, prod_info = get_prob_improb(prod_X, prod_Y, prod_info, mode=args.prob_improb_run)
 
     # get folds
     if args.project_id == "podcast":  # podcast
@@ -115,11 +121,32 @@ def encoding_setup(args, elec_name, elec_datum, elec_signal):
         )
 
     # Oragnize
-    comp_data = comp_X, comp_Y, fold_cat_comp
-    prod_data = prod_X, prod_Y, fold_cat_prod
+    comp_data = comp_X, comp_Y, fold_cat_comp, comp_info
+    prod_data = prod_X, prod_Y, fold_cat_prod, prod_info
 
     return comp_data, prod_data
 
+
+def get_prob_improb(X, Y, info, mode):
+    if len(info) == 0:
+        return X, Y, info
+    if mode == "prob":
+        quantile = 0.7
+    elif mode == "improb":
+        quantile = 0.3
+    else:
+        raise ValueError("mode must be 'prob' or 'improb'")
+    threshold = np.quantile(info.true_pred_prob, quantile)
+
+    if mode == 'prob':
+        mask = info.true_pred_prob > threshold
+    elif mode == 'improb':
+        mask = info.true_pred_prob < threshold
+
+    X = X[mask, :]
+    Y = Y[mask, :]
+    info = info[mask]
+    return X, Y, info
 
 def encoding_correlation(CA, CB):
     """[summary]
@@ -404,7 +431,7 @@ def encoding_regression(args, X, Y, folds):
                             }
     return (YHAT, Ynew, corrs, model_fittind_params)
 
-def run_encoding_sig_coeffs(args, X, Y, folds):
+def run_encoding_sig_coeffs(args, X, Y, folds, _):
     # train lm and predict
     (lasso_corrs, lasso_model_fitting_params, ols_r2, ols_model_fitting_params,
      coeffs_conversion_dict) = encoding_regression_sig_coeffs(args, X, Y, folds)
@@ -412,7 +439,7 @@ def run_encoding_sig_coeffs(args, X, Y, folds):
     return lasso_corrs, lasso_model_fitting_params, ols_r2, ols_model_fitting_params, coeffs_conversion_dict
 
 
-def run_encoding(args, X, Y, folds):
+def run_encoding(args, X, Y, folds, info):
 
     # train lm and predict
 
@@ -430,7 +457,7 @@ def run_encoding(args, X, Y, folds):
 
     return corrs, model_fittind_params
 
-def run_rafi_encoding(args, conversation_ids, X, Y, _, filename):
+def run_rafi_encoding(args, conversation_ids, X, Y, _, info, filename):
     nwords = X.shape[0] # Num of words
     nlags = Y.shape[1] if Y.shape[1:] else 1 # Num of lags
     linear_dim = args.pca_to if args.regularization == "none" else X.shape[1]
@@ -511,7 +538,7 @@ def run_rafi_encoding(args, conversation_ids, X, Y, _, filename):
         pickle.dump(models, f)
     return
 
-def run_correlations(args, X, Y, folds, filename):
+def run_correlations(args, X, Y, folds, _, filename):
     # Remove constant vectors
     X_std = np.std(X, axis=0)
     non_constant_mask = X_std > 1e-10

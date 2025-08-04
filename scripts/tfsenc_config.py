@@ -166,6 +166,11 @@ def setup_environ(args):
         res_dir_base += "-rafi"
     elif args.type_encoding == "all_data":
         res_dir_base += "-all_data"
+    if args.prob_improb_run:
+        if args.prob_improb_run == "prob" or args.prob_improb_run == "improb":
+            res_dir_base += f"/{args.prob_improb_run}"
+        else:
+            raise ValueError(f"Unknown prob_improb_run value: {args.prob_improb_run}")
     RESULT_CHILD_DIR = res_dir_base
     args.output_dir = os.path.join(OUTPUT_DIR, RESULT_PARENT_DIR, RESULT_CHILD_DIR)
     os.makedirs(args.output_dir, exist_ok=True)
